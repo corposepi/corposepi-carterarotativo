@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CORPOSEPI — Cartera Educativa</title>
+<link rel="manifest" href="manifest-cartera.json">
+<meta name="theme-color" content="#163A6B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cartera">
+<link rel="apple-touch-icon" href="icon-cartera-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,700;9..144,800&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -1675,5 +1681,6 @@ fbdb.ref('pagos_v3').on('value',snap=>{ PAGOS=snap.val()||{}; refrescarVista(); 
 fbdb.ref('rotativo_v1/acuerdos').on('value',snap=>{ ACUERDOS=snap.val()||{}; refrescarVista(); });
 fbdb.ref('rotativo_v1/obligaciones').on('value',snap=>{ OBLIGACIONES=snap.val()||{}; });
 </script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}</script>
 </body>
 </html>

@@ -1,0 +1,15 @@
+{
+  "name": "CORPOSEPI Fondo Rotativo",
+  "short_name": "Rotativo",
+  "description": "Fondo Rotativo CORPOSEPI - obligaciones, cuentas, inversionistas y deudas",
+  "start_url": "./CORPOSEPI_Flujo_Rotativo.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#c64a1f",
+  "theme_color": "#c64a1f",
+  "icons": [
+    { "src": "icon-rotativo-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-rotativo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
