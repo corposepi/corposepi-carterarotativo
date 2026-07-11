@@ -843,32 +843,37 @@ tr:hover td{background:#f8fafc}
   <div class="mo-h"><div class="mo-h-ico">🏦</div><div class="mo-h-info"><h2 id="deuda-titulo">Nueva deuda</h2><p>Préstamo recibido · interés mensual</p></div><button class="mo-x" onclick="c('ov-deuda')">✕</button></div>
   <div class="mo-b">
     <div class="ff"><label>Prestamista *</label><input id="deuda-nombre" placeholder="Ej: Fredy Reyes"></div>
+    <div class="ff" style="margin-top:8px"><label>Tipo de interés</label><select id="deuda-tipo" onchange="deudaToggleTipo()">
+      <option value="mensual">📅 Mensual (se paga cada mes; si no, se acumula)</option>
+      <option value="anticipado">💵 Anticipado (se descuenta al recibir; solo se devuelve capital)</option>
+    </select></div>
     <div class="fg c2" style="margin-top:8px">
-      <div class="ff"><label>Capital prestado ($)</label><input id="deuda-capital" type="number" placeholder="$ 6.000.000"></div>
-      <div class="ff"><label>Interés mensual (%)</label><input id="deuda-tasa" type="number" step="0.1" placeholder="5"></div>
+      <div class="ff"><label>Capital prestado ($)</label><input id="deuda-capital" type="number" placeholder="$ 6.000.000" oninput="deudaHint()"></div>
+      <div class="ff"><label>Interés (%)</label><input id="deuda-tasa" type="number" step="0.1" placeholder="5" oninput="deudaHint()"></div>
     </div>
     <div class="fg c2" style="margin-top:8px">
       <div class="ff"><label>Fecha del préstamo</label><input id="deuda-fecha" type="date"></div>
-      <div class="ff"><label>Próximo pago de interés</label><input id="deuda-vence" type="date"></div>
+      <div class="ff" id="deuda-dia-box"><label>Día de pago del interés</label><input id="deuda-dia" type="number" min="1" max="31" placeholder="15"></div>
     </div>
     <div class="ff" style="margin-top:8px"><label>Observaciones</label><input id="deuda-obs" placeholder="opcional"></div>
+    <div id="deuda-hint" style="font-size:11px;color:#5B21B6;margin-top:8px;font-weight:600"></div>
   </div>
   <div class="mo-f"><button class="btn b-o" onclick="c('ov-deuda')">Cancelar</button><button class="btn b-corp" onclick="guardarDeuda()">✓ Guardar</button></div>
 </div>
 </div>
 
-<!-- ══ MODAL: PAGO DE INTERÉS A UNA DEUDA ══ -->
-<div class="ov" id="ov-pagoint">
+<!-- ══ MODAL: ABONO A CAPITAL DE UNA DEUDA ══ -->
+<div class="ov" id="ov-abonocap">
 <div class="modal modal-sm">
-  <div class="mo-h"><div class="mo-h-ico">💵</div><div class="mo-h-info"><h2>Pago de interés</h2><p id="pagoint-sub">—</p></div><button class="mo-x" onclick="c('ov-pagoint')">✕</button></div>
+  <div class="mo-h"><div class="mo-h-ico">💵</div><div class="mo-h-info"><h2>Abonar a capital</h2><p id="abonocap-sub">—</p></div><button class="mo-x" onclick="c('ov-abonocap')">✕</button></div>
   <div class="mo-b">
     <div class="fg c2">
-      <div class="ff"><label>Interés pagado ($)</label><input id="pagoint-monto" type="number"></div>
-      <div class="ff"><label>Fecha</label><input id="pagoint-fecha" type="date"></div>
+      <div class="ff"><label>Monto que devuelves ($)</label><input id="abonocap-monto" type="number"></div>
+      <div class="ff"><label>Fecha</label><input id="abonocap-fecha" type="date"></div>
     </div>
-    <div class="ff" style="margin-top:8px"><label>¿Abonó también a capital? (opcional)</label><input id="pagoint-capital" type="number" placeholder="$ 0"></div>
+    <div style="font-size:11px;color:var(--ts);margin-top:8px">Esto reduce el capital que debes al prestamista. El interés se maneja aparte.</div>
   </div>
-  <div class="mo-f"><button class="btn b-o" onclick="c('ov-pagoint')">Cancelar</button><button class="btn b-corp" onclick="guardarPagoInt()">✓ Registrar</button></div>
+  <div class="mo-f"><button class="btn b-o" onclick="c('ov-abonocap')">Cancelar</button><button class="btn b-corp" onclick="guardarAbonoCap()">✓ Registrar abono</button></div>
 </div>
 </div>
 
@@ -2054,9 +2059,26 @@ function invValor(iv){
 }
 function invTasaActual(iv){ const ps=invPeriodos(iv); return ps[ps.length-1].tasa||0; }
 function invCalcTokens(){ const cap=parseInt(g("inv-capital").value)||0, tok=parseInt(g("inv-token").value)||0; g("inv-tokens-calc").textContent = (tok>0&&cap>0) ? `= ${Math.round(cap/tok)} tokens de ${fmt(tok)} c/u` : ""; }
-function deudaAbonos(d){ return Object.values(d.pagos||{}).reduce((s,p)=>s+(p.capital||0),0); }
+function deudaAbonos(d){ return Object.values(d.abonos||{}).reduce((s,p)=>s+(p.monto||0),0); }
 function deudaSaldo(d){ return Math.max(0,(d.capital||0)-deudaAbonos(d)); }
-function deudaIntPagado(d){ return Object.values(d.pagos||{}).reduce((s,p)=>s+(p.monto||0),0); }
+function deudaIntMes(d){ return Math.round((d.capital||0)*((d.tasa||0)/100)); }
+function deudaIntAnticipado(d){ return Math.round((d.capital||0)*((d.tasa||0)/100)); }
+function deudaNetoRecibido(d){ return (d.capital||0)-deudaIntAnticipado(d); }
+// Cronograma mensual de interés (tipo "mensual"): una cuota por mes desde la fecha, al día de pago. Acumula si no se paga (simple, sin interés sobre interés).
+function deudaCuotas(d){
+  if(d.tipo==="anticipado" || !d.fecha) return [];
+  const out=[]; const dia=d.diaPago||parseInt((d.fecha||"").split("-")[2])||15;
+  const now=new Date(); let m=new Date(d.fecha+"T00:00:00"); m.setMonth(m.getMonth()+1); let g=0;
+  while(g<400){ g++;
+    if(m.getFullYear()>now.getFullYear() || (m.getFullYear()===now.getFullYear() && m.getMonth()>now.getMonth())) break;
+    const mesKey=m.getFullYear()+"-"+String(m.getMonth()+1).padStart(2,"0");
+    out.push({mesKey, fecha:mesKey+"-"+String(dia).padStart(2,"0"), interes:deudaIntMes(d), pagado:!!(d.intPagados&&d.intPagados[mesKey])});
+    m.setMonth(m.getMonth()+1);
+  }
+  return out;
+}
+function deudaIntAcumulado(d){ return deudaCuotas(d).filter(c=>!c.pagado).reduce((s,c)=>s+c.interes,0); }
+function deudaIntPagadoTot(d){ return deudaCuotas(d).filter(c=>c.pagado).reduce((s,c)=>s+c.interes,0); }
 
 function rInversiones(){
   // ── Inversionistas ──
@@ -2086,37 +2108,55 @@ function rInversiones(){
   // ── Deudas ──
   const de=g("deuda-lista"); const dids=Object.keys(DEUDAS_FB||{});
   if(!dids.length){ de.innerHTML='<div style="padding:16px;text-align:center;color:var(--ts);font-size:13px">Aún no hay deudas registradas.</div>'; return; }
-  let capD=0, intD=0; dids.forEach(id=>{const d=DEUDAS_FB[id]; const s=deudaSaldo(d); capD+=s; intD+=s*((d.tasa||0)/100);});
+  let capD=0, intAcum=0; dids.forEach(id=>{const d=DEUDAS_FB[id]; capD+=deudaSaldo(d); intAcum+=deudaIntAcumulado(d);});
   de.innerHTML=`<div style="padding:12px 16px;background:linear-gradient(135deg,#FFF6F0,#F0F4F9);border-bottom:1px solid var(--gb);display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;text-align:center;font-size:11px">
       <div style="background:#fff;border-radius:8px;padding:8px"><div style="color:var(--ts)">Capital que debes</div><strong style="color:var(--ro)">${fmt(capD)}</strong></div>
-      <div style="background:#fff;border-radius:8px;padding:8px"><div style="color:var(--ts)">Interés mensual a pagar</div><strong style="color:var(--corp)">${fmt(Math.round(intD))}</strong></div>
+      <div style="background:#fff;border-radius:8px;padding:8px"><div style="color:var(--ts)">Interés acumulado pendiente</div><strong style="color:var(--corp)">${fmt(intAcum)}</strong></div>
     </div>`+
-    dids.map(id=>{const d=DEUDAS_FB[id]; const saldo=deudaSaldo(d), intM=saldo*((d.tasa||0)/100), intPag=deudaIntPagado(d); const pagos=Object.entries(d.pagos||{}).sort((a,b)=>(b[1].fecha||"").localeCompare(a[1].fecha||""));
-      return `<div style="padding:14px 16px;border-bottom:1px solid var(--gb)">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
-          <div><div style="font-weight:700;font-size:14px">🏦 ${d.nombre}</div><div style="font-size:11px;color:var(--ts)">Capital ${fmt(d.capital||0)} · ${d.tasa||0}% mensual${d.fecha?` · desde ${fFechaR(d.fecha)}`:""}${d.obs?` · ${d.obs}`:""}</div></div>
-          <div style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn b-v b-sm" onclick="abrirPagoInt('${id}')">➕ Pago de interés</button><button class="btn b-o b-sm" onclick="abrirEditarDeuda('${id}')">✏</button><button class="btn b-o b-sm" onclick="borrarDeuda('${id}')">🗑</button></div>
-        </div>
+    dids.map(id=>{const d=DEUDAS_FB[id]; const saldo=deudaSaldo(d); const antic=d.tipo==="anticipado";
+      const badge=antic?'<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:#EDE9FE;color:#5B21B6">💵 Interés anticipado</span>':'<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:#FFF7E6;color:#8A6D00">📅 Interés mensual (acumula)</span>';
+      const cabecera=`<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
+          <div><div style="font-weight:700;font-size:14px">🏦 ${d.nombre} ${badge}</div><div style="font-size:11px;color:var(--ts)">Capital ${fmt(d.capital||0)} · ${d.tasa||0}%${antic?" (una vez)":" mensual"}${d.fecha?` · desde ${fFechaR(d.fecha)}`:""}${d.obs?` · ${d.obs}`:""}</div></div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn b-corp b-sm" onclick="abrirAbonoCap('${id}')">➖ Abonar capital</button><button class="btn b-o b-sm" onclick="abrirEditarDeuda('${id}')">✏</button><button class="btn b-o b-sm" onclick="borrarDeuda('${id}')">🗑</button></div>
+        </div>`;
+      if(antic){
+        const ia=deudaIntAnticipado(d), neto=deudaNetoRecibido(d);
+        return `<div style="padding:14px 16px;border-bottom:1px solid var(--gb)">${cabecera}
+          <div style="display:flex;gap:6px;font-size:11px;margin-top:8px;flex-wrap:wrap">
+            <span style="flex:1;text-align:center;background:#F5F0FF;border-radius:6px;padding:6px;min-width:88px">Interés descontado (${d.tasa||0}%) <strong style="color:#7C3AED">${fmt(ia)}</strong></span>
+            <span style="flex:1;text-align:center;background:var(--vec);border-radius:6px;padding:6px;min-width:88px">Neto recibido <strong style="color:var(--ve)">${fmt(neto)}</strong></span>
+            <span style="flex:1;text-align:center;background:var(--roc);border-radius:6px;padding:6px;min-width:88px">A devolver (solo capital) <strong style="color:var(--ro)">${fmt(saldo)}</strong></span>
+          </div>
+          <div style="font-size:10px;color:var(--ts);margin-top:5px">El interés se descontó al recibir. Al devolver se paga solo el capital, no más interés.</div>
+        </div>`;
+      }
+      // mensual con acumulación
+      const cuotas=deudaCuotas(d), acumP=deudaIntAcumulado(d), pagT=deudaIntPagadoTot(d);
+      return `<div style="padding:14px 16px;border-bottom:1px solid var(--gb)">${cabecera}
         <div style="display:flex;gap:6px;font-size:11px;margin-top:8px;flex-wrap:wrap">
-          <span style="flex:1;text-align:center;background:var(--roc);border-radius:6px;padding:6px;min-width:88px">Saldo capital <strong style="color:var(--ro)">${fmt(saldo)}</strong></span>
-          <span style="flex:1;text-align:center;background:#FFF7E6;border-radius:6px;padding:6px;min-width:88px">Interés del mes <strong style="color:var(--corp)">${fmt(Math.round(intM))}</strong></span>
-          <span style="flex:1;text-align:center;background:#EBF3FF;border-radius:6px;padding:6px;min-width:88px">Interés pagado <strong style="color:var(--azv)">${fmt(intPag)}</strong></span>
-          ${d.vence?`<span style="flex:1;text-align:center;background:#FDECEC;border-radius:6px;padding:6px;min-width:88px">Próximo pago <strong>${fFechaR(d.vence)}</strong></span>`:""}
+          <span style="flex:1;text-align:center;background:var(--roc);border-radius:6px;padding:6px;min-width:80px">Saldo capital <strong style="color:var(--ro)">${fmt(saldo)}</strong></span>
+          <span style="flex:1;text-align:center;background:#FFF7E6;border-radius:6px;padding:6px;min-width:80px">Interés del mes <strong style="color:var(--corp)">${fmt(deudaIntMes(d))}</strong></span>
+          <span style="flex:1;text-align:center;background:#FDECEC;border-radius:6px;padding:6px;min-width:80px">Interés acumulado <strong style="color:var(--ro)">${fmt(acumP)}</strong></span>
+          <span style="flex:1;text-align:center;background:#EBF3FF;border-radius:6px;padding:6px;min-width:80px">Interés pagado <strong style="color:var(--azv)">${fmt(pagT)}</strong></span>
         </div>
-        ${pagos.length?`<table style="margin-top:8px"><thead><tr><th>Fecha</th><th>Interés</th><th>Abono capital</th><th></th></tr></thead><tbody>`+pagos.map(p=>`<tr><td style="font-size:11px">${fFechaR(p[1].fecha)}</td><td style="font-family:'Syne',sans-serif;font-weight:700">${fmt(p[1].monto||0)}</td><td style="font-size:11px">${p[1].capital?fmt(p[1].capital):"—"}</td><td><button class="btn b-o b-sm" onclick="delPagoInt('${id}','${p[0]}')">🗑</button></td></tr>`).join("")+`</tbody></table>`:''}
+        ${cuotas.length?`<table style="margin-top:8px"><thead><tr><th>Mes (día ${d.diaPago||"15"})</th><th>Interés</th><th>Estado</th></tr></thead><tbody>`+cuotas.map(c=>`<tr><td style="font-size:11px">${fFechaR(c.fecha)}</td><td style="font-family:'Syne',sans-serif;font-weight:700">${fmt(c.interes)}</td><td><button class="btn ${c.pagado?'b-o':'b-v'} b-sm" onclick="togglePagoMes('${id}','${c.mesKey}',${!c.pagado})">${c.pagado?'✓ Pagó':'⏳ Pendiente'}</button></td></tr>`).join("")+`</tbody></table>`:'<div style="font-size:11px;color:var(--ts);margin-top:6px">Aún no hay meses de interés.</div>'}
+        <div style="font-size:10px;color:var(--ts);margin-top:5px">Si un mes no se paga, su interés se acumula (simple, sin interés sobre interés).</div>
       </div>`;}).join("");
 }
 function abrirNuevaInv(){ invEditId=null; g("inv-titulo").textContent="Nueva inversión"; g("inv-nombre").value=""; g("inv-tel").value=""; g("inv-capital").value=""; g("inv-fecha").value=hoy(); g("inv-tasa").value="3.9"; g("inv-token").value="20000"; invCalcTokens(); ab("ov-inv"); }
 function abrirEditarInv(id){ const iv=INVERSIONES_FB[id]; if(!iv)return; invEditId=id; g("inv-titulo").textContent="Editar inversión"; g("inv-nombre").value=iv.nombre||""; g("inv-tel").value=iv.tel||""; g("inv-capital").value=iv.capital||""; g("inv-fecha").value=iv.fecha||hoy(); g("inv-tasa").value=iv.tasa||3.9; g("inv-token").value=iv.token||20000; invCalcTokens(); ab("ov-inv"); }
 function guardarInv(){ const nombre=g("inv-nombre").value.trim(), capital=parseInt(g("inv-capital").value)||0; if(!nombre||!capital){toast("⚠ Pon inversionista y capital");return;} const campos={nombre,tel:g("inv-tel").value.trim()||"",capital,fecha:g("inv-fecha").value||hoy(),tasa:parseFloat(g("inv-tasa").value)||0,token:parseInt(g("inv-token").value)||20000}; const id=invEditId||("inv_"+Date.now()); fbdb.ref("rotativo_v1/inversiones/"+id).update(campos).then(()=>{c("ov-inv");toast("✅ Inversión guardada");invEditId=null;}).catch(e=>toast("⚠ "+e.message)); }
 function borrarInv(id){ if(!INVERSIONES_FB[id])return; fbdb.ref("rotativo_v1/inversiones/"+id).remove().then(()=>toast("🗑 Inversión eliminada")).catch(e=>toast("⚠ "+e.message)); }
-function abrirNuevaDeuda(){ deudaEditId=null; g("deuda-titulo").textContent="Nueva deuda"; g("deuda-nombre").value=""; g("deuda-capital").value=""; g("deuda-tasa").value="5"; g("deuda-fecha").value=hoy(); g("deuda-vence").value=""; g("deuda-obs").value=""; ab("ov-deuda"); }
-function abrirEditarDeuda(id){ const d=DEUDAS_FB[id]; if(!d)return; deudaEditId=id; g("deuda-titulo").textContent="Editar deuda"; g("deuda-nombre").value=d.nombre||""; g("deuda-capital").value=d.capital||""; g("deuda-tasa").value=d.tasa||0; g("deuda-fecha").value=d.fecha||hoy(); g("deuda-vence").value=d.vence||""; g("deuda-obs").value=d.obs||""; ab("ov-deuda"); }
-function guardarDeuda(){ const nombre=g("deuda-nombre").value.trim(), capital=parseInt(g("deuda-capital").value)||0; if(!nombre||!capital){toast("⚠ Pon prestamista y capital");return;} const campos={nombre,capital,tasa:parseFloat(g("deuda-tasa").value)||0,fecha:g("deuda-fecha").value||hoy(),vence:g("deuda-vence").value||"",obs:g("deuda-obs").value||""}; const id=deudaEditId||("deuda_"+Date.now()); fbdb.ref("rotativo_v1/deudas/"+id).update(campos).then(()=>{c("ov-deuda");toast("✅ Deuda guardada");deudaEditId=null;}).catch(e=>toast("⚠ "+e.message)); }
+function deudaToggleTipo(){ const anti=g("deuda-tipo").value==="anticipado"; g("deuda-dia-box").style.display=anti?"none":"block"; deudaHint(); }
+function deudaHint(){ const cap=parseInt(g("deuda-capital").value)||0, t=parseFloat(g("deuda-tasa").value)||0, ia=Math.round(cap*t/100); g("deuda-hint").textContent = g("deuda-tipo").value==="anticipado" ? (cap? `Interés descontado: ${fmt(ia)} · Neto que recibes: ${fmt(cap-ia)} · A devolver: ${fmt(cap)}`:"") : (cap? `Interés cada mes: ${fmt(ia)} (se acumula si no se paga)`:""); }
+function abrirNuevaDeuda(){ deudaEditId=null; g("deuda-titulo").textContent="Nueva deuda"; g("deuda-nombre").value=""; g("deuda-tipo").value="mensual"; g("deuda-capital").value=""; g("deuda-tasa").value="5"; g("deuda-fecha").value=hoy(); g("deuda-dia").value="15"; g("deuda-obs").value=""; deudaToggleTipo(); ab("ov-deuda"); }
+function abrirEditarDeuda(id){ const d=DEUDAS_FB[id]; if(!d)return; deudaEditId=id; g("deuda-titulo").textContent="Editar deuda"; g("deuda-nombre").value=d.nombre||""; g("deuda-tipo").value=d.tipo||"mensual"; g("deuda-capital").value=d.capital||""; g("deuda-tasa").value=d.tasa||0; g("deuda-fecha").value=d.fecha||hoy(); g("deuda-dia").value=d.diaPago||15; g("deuda-obs").value=d.obs||""; deudaToggleTipo(); ab("ov-deuda"); }
+function guardarDeuda(){ const nombre=g("deuda-nombre").value.trim(), capital=parseInt(g("deuda-capital").value)||0; if(!nombre||!capital){toast("⚠ Pon prestamista y capital");return;} const tipo=g("deuda-tipo").value; const campos={nombre,tipo,capital,tasa:parseFloat(g("deuda-tasa").value)||0,fecha:g("deuda-fecha").value||hoy(),diaPago:parseInt(g("deuda-dia").value)||15,obs:g("deuda-obs").value||""}; const id=deudaEditId||("deuda_"+Date.now()); fbdb.ref("rotativo_v1/deudas/"+id).update(campos).then(()=>{c("ov-deuda");toast("✅ Deuda guardada");deudaEditId=null;}).catch(e=>toast("⚠ "+e.message)); }
 function borrarDeuda(id){ if(!DEUDAS_FB[id])return; fbdb.ref("rotativo_v1/deudas/"+id).remove().then(()=>toast("🗑 Deuda eliminada")).catch(e=>toast("⚠ "+e.message)); }
-function abrirPagoInt(id){ const d=DEUDAS_FB[id]; if(!d)return; pagoIntDeudaId=id; const intM=Math.round(deudaSaldo(d)*((d.tasa||0)/100)); g("pagoint-sub").textContent=d.nombre+" · interés del mes "+fmt(intM); g("pagoint-monto").value=intM; g("pagoint-fecha").value=hoy(); g("pagoint-capital").value=""; ab("ov-pagoint"); }
-function guardarPagoInt(){ if(!pagoIntDeudaId)return; const monto=parseInt(g("pagoint-monto").value)||0, capital=parseInt(g("pagoint-capital").value)||0; if(monto<=0&&capital<=0){toast("⚠ Pon el monto del interés o abono");return;} const pid="p_"+Date.now(); fbdb.ref(`rotativo_v1/deudas/${pagoIntDeudaId}/pagos/${pid}`).set({fecha:g("pagoint-fecha").value||hoy(),monto,capital}).then(()=>{c("ov-pagoint");toast("✅ Pago de interés registrado");pagoIntDeudaId=null;}).catch(e=>toast("⚠ "+e.message)); }
-function delPagoInt(id,pid){ fbdb.ref(`rotativo_v1/deudas/${id}/pagos/${pid}`).remove().then(()=>toast("🗑 Pago eliminado")).catch(e=>toast("⚠ "+e.message)); }
+function togglePagoMes(id,mesKey,pagar){ const d=DEUDAS_FB[id]; if(!d)return; const val=pagar?{fecha:hoy(),monto:deudaIntMes(d)}:null; fbdb.ref(`rotativo_v1/deudas/${id}/intPagados/${mesKey}`).set(val).then(()=>toast(pagar?"✅ Interés del mes marcado pagado":"↩ Interés del mes pendiente (acumula)")).catch(e=>toast("⚠ "+e.message)); }
+let abonoCapId=null;
+function abrirAbonoCap(id){ const d=DEUDAS_FB[id]; if(!d)return; abonoCapId=id; g("abonocap-sub").textContent=d.nombre+" · saldo capital "+fmt(deudaSaldo(d)); g("abonocap-monto").value=""; g("abonocap-fecha").value=hoy(); ab("ov-abonocap"); }
+function guardarAbonoCap(){ if(!abonoCapId)return; const monto=parseInt(g("abonocap-monto").value)||0; if(monto<=0){toast("⚠ Pon el monto");return;} const aid="a_"+Date.now(); fbdb.ref(`rotativo_v1/deudas/${abonoCapId}/abonos/${aid}`).set({fecha:g("abonocap-fecha").value||hoy(),monto}).then(()=>{c("ov-abonocap");toast("✅ Abono a capital registrado");abonoCapId=null;}).catch(e=>toast("⚠ "+e.message)); }
 // Cambios de interés (tramos) de una inversión
 let ctInvId=null;
 function abrirCambioTasa(id){ const iv=INVERSIONES_FB[id]; if(!iv)return; ctInvId=id; g("ct-sub").textContent=iv.nombre+" · "+fmt(iv.capital||0); g("ct-fecha").value=hoy(); g("ct-tasa").value=""; ctRender(); ab("ov-cambiotasa"); }
