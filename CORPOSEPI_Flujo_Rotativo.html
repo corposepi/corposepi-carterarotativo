@@ -843,6 +843,7 @@ tr:hover td{background:#f8fafc}
   <div class="mo-h"><div class="mo-h-ico">🏦</div><div class="mo-h-info"><h2 id="deuda-titulo">Nueva deuda</h2><p>Préstamo recibido · interés mensual</p></div><button class="mo-x" onclick="c('ov-deuda')">✕</button></div>
   <div class="mo-b">
     <div class="ff"><label>Prestamista *</label><input id="deuda-nombre" placeholder="Ej: Fredy Reyes"></div>
+    <div class="ff" style="margin-top:8px"><label>Teléfono (WhatsApp)</label><input id="deuda-tel" placeholder="Ej: 300 123 4567"></div>
     <div class="ff" style="margin-top:8px"><label>Tipo de interés</label><select id="deuda-tipo" onchange="deudaToggleTipo()">
       <option value="mensual">📅 Mensual (se paga cada mes; si no, se acumula)</option>
       <option value="anticipado">💵 Anticipado (se descuenta al recibir; solo se devuelve capital)</option>
@@ -2067,13 +2068,14 @@ function deudaNetoRecibido(d){ return (d.capital||0)-deudaIntAnticipado(d); }
 // Cronograma mensual de interés (tipo "mensual"): una cuota por mes desde la fecha, al día de pago. Acumula si no se paga (simple, sin interés sobre interés).
 function deudaCuotas(d){
   if(d.tipo==="anticipado" || !d.fecha) return [];
-  const out=[]; const dia=d.diaPago||parseInt((d.fecha||"").split("-")[2])||15;
-  const now=new Date(); let m=new Date(d.fecha+"T00:00:00"); m.setMonth(m.getMonth()+1); let g=0;
-  while(g<400){ g++;
-    if(m.getFullYear()>now.getFullYear() || (m.getFullYear()===now.getFullYear() && m.getMonth()>now.getMonth())) break;
-    const mesKey=m.getFullYear()+"-"+String(m.getMonth()+1).padStart(2,"0");
-    out.push({mesKey, fecha:mesKey+"-"+String(dia).padStart(2,"0"), interes:deudaIntMes(d), pagado:!!(d.intPagados&&d.intPagados[mesKey])});
-    m.setMonth(m.getMonth()+1);
+  const out=[]; const start=new Date(d.fecha+"T00:00:00"); const dia=d.diaPago||start.getDate()||15;
+  const now=new Date(); const y0=start.getFullYear(); let idx=start.getMonth()+1; // primer vencimiento = mes siguiente
+  for(let k=0;k<400;k++){
+    const due=new Date(y0, idx, dia);         // el interés vence (y se acumula) en su día de pago
+    if(due>now) break;                        // aún no llega ese día → todavía no cuenta
+    const mk=due.getFullYear()+"-"+String(due.getMonth()+1).padStart(2,"0");
+    out.push({mesKey:mk, fecha:mk+"-"+String(dia).padStart(2,"0"), interes:deudaIntMes(d), pagado:!!(d.intPagados&&d.intPagados[mk])});
+    idx++;
   }
   return out;
 }
@@ -2117,7 +2119,7 @@ function rInversiones(){
       const badge=antic?'<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:#EDE9FE;color:#5B21B6">💵 Interés anticipado</span>':'<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:#FFF7E6;color:#8A6D00">📅 Interés mensual (acumula)</span>';
       const cabecera=`<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
           <div><div style="font-weight:700;font-size:14px">🏦 ${d.nombre} ${badge}</div><div style="font-size:11px;color:var(--ts)">Capital ${fmt(d.capital||0)} · ${d.tasa||0}%${antic?" (una vez)":" mensual"}${d.fecha?` · desde ${fFechaR(d.fecha)}`:""}${d.obs?` · ${d.obs}`:""}</div></div>
-          <div style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn b-corp b-sm" onclick="abrirAbonoCap('${id}')">➖ Abonar capital</button><button class="btn b-o b-sm" onclick="abrirEditarDeuda('${id}')">✏</button><button class="btn b-o b-sm" onclick="borrarDeuda('${id}')">🗑</button></div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn b-w b-sm" onclick="enviarEstadoDeuda('${id}')">📄 Estado</button><button class="btn b-corp b-sm" onclick="abrirAbonoCap('${id}')">➖ Abonar capital</button><button class="btn b-o b-sm" onclick="abrirEditarDeuda('${id}')">✏</button><button class="btn b-o b-sm" onclick="borrarDeuda('${id}')">🗑</button></div>
         </div>`;
       if(antic){
         const ia=deudaIntAnticipado(d), neto=deudaNetoRecibido(d);
@@ -2149,9 +2151,20 @@ function guardarInv(){ const nombre=g("inv-nombre").value.trim(), capital=parseI
 function borrarInv(id){ if(!INVERSIONES_FB[id])return; fbdb.ref("rotativo_v1/inversiones/"+id).remove().then(()=>toast("🗑 Inversión eliminada")).catch(e=>toast("⚠ "+e.message)); }
 function deudaToggleTipo(){ const anti=g("deuda-tipo").value==="anticipado"; g("deuda-dia-box").style.display=anti?"none":"block"; deudaHint(); }
 function deudaHint(){ const cap=parseInt(g("deuda-capital").value)||0, t=parseFloat(g("deuda-tasa").value)||0, ia=Math.round(cap*t/100); g("deuda-hint").textContent = g("deuda-tipo").value==="anticipado" ? (cap? `Interés descontado: ${fmt(ia)} · Neto que recibes: ${fmt(cap-ia)} · A devolver: ${fmt(cap)}`:"") : (cap? `Interés cada mes: ${fmt(ia)} (se acumula si no se paga)`:""); }
-function abrirNuevaDeuda(){ deudaEditId=null; g("deuda-titulo").textContent="Nueva deuda"; g("deuda-nombre").value=""; g("deuda-tipo").value="mensual"; g("deuda-capital").value=""; g("deuda-tasa").value="5"; g("deuda-fecha").value=hoy(); g("deuda-dia").value="15"; g("deuda-obs").value=""; deudaToggleTipo(); ab("ov-deuda"); }
-function abrirEditarDeuda(id){ const d=DEUDAS_FB[id]; if(!d)return; deudaEditId=id; g("deuda-titulo").textContent="Editar deuda"; g("deuda-nombre").value=d.nombre||""; g("deuda-tipo").value=d.tipo||"mensual"; g("deuda-capital").value=d.capital||""; g("deuda-tasa").value=d.tasa||0; g("deuda-fecha").value=d.fecha||hoy(); g("deuda-dia").value=d.diaPago||15; g("deuda-obs").value=d.obs||""; deudaToggleTipo(); ab("ov-deuda"); }
-function guardarDeuda(){ const nombre=g("deuda-nombre").value.trim(), capital=parseInt(g("deuda-capital").value)||0; if(!nombre||!capital){toast("⚠ Pon prestamista y capital");return;} const tipo=g("deuda-tipo").value; const campos={nombre,tipo,capital,tasa:parseFloat(g("deuda-tasa").value)||0,fecha:g("deuda-fecha").value||hoy(),diaPago:parseInt(g("deuda-dia").value)||15,obs:g("deuda-obs").value||""}; const id=deudaEditId||("deuda_"+Date.now()); fbdb.ref("rotativo_v1/deudas/"+id).update(campos).then(()=>{c("ov-deuda");toast("✅ Deuda guardada");deudaEditId=null;}).catch(e=>toast("⚠ "+e.message)); }
+function abrirNuevaDeuda(){ deudaEditId=null; g("deuda-titulo").textContent="Nueva deuda"; g("deuda-nombre").value=""; g("deuda-tel").value=""; g("deuda-tipo").value="mensual"; g("deuda-capital").value=""; g("deuda-tasa").value="5"; g("deuda-fecha").value=hoy(); g("deuda-dia").value="15"; g("deuda-obs").value=""; deudaToggleTipo(); ab("ov-deuda"); }
+function abrirEditarDeuda(id){ const d=DEUDAS_FB[id]; if(!d)return; deudaEditId=id; g("deuda-titulo").textContent="Editar deuda"; g("deuda-nombre").value=d.nombre||""; g("deuda-tel").value=d.tel||""; g("deuda-tipo").value=d.tipo||"mensual"; g("deuda-capital").value=d.capital||""; g("deuda-tasa").value=d.tasa||0; g("deuda-fecha").value=d.fecha||hoy(); g("deuda-dia").value=d.diaPago||15; g("deuda-obs").value=d.obs||""; deudaToggleTipo(); ab("ov-deuda"); }
+function guardarDeuda(){ const nombre=g("deuda-nombre").value.trim(), capital=parseInt(g("deuda-capital").value)||0; if(!nombre||!capital){toast("⚠ Pon prestamista y capital");return;} const tipo=g("deuda-tipo").value; const campos={nombre,tel:g("deuda-tel").value.trim()||"",tipo,capital,tasa:parseFloat(g("deuda-tasa").value)||0,fecha:g("deuda-fecha").value||hoy(),diaPago:parseInt(g("deuda-dia").value)||15,obs:g("deuda-obs").value||""}; const id=deudaEditId||("deuda_"+Date.now()); fbdb.ref("rotativo_v1/deudas/"+id).update(campos).then(()=>{c("ov-deuda");toast("✅ Deuda guardada");deudaEditId=null;}).catch(e=>toast("⚠ "+e.message)); }
+function estadoDeudaMsg(d){
+  const tel="";
+  if(d.tipo==="anticipado"){
+    const ia=deudaIntAnticipado(d), neto=deudaNetoRecibido(d);
+    return `Cordial saludo, *${d.nombre}*.\n\n📄 *Estado de su préstamo — CORPOSEPI®*\n\n• Fecha del préstamo: ${fFechaR(d.fecha)}\n• Capital: ${fmt(d.capital||0)}\n• Interés (${d.tasa||0}%, descontado por anticipado): ${fmt(ia)}\n• Neto entregado: ${fmt(neto)}\n\n*Le debemos (solo capital): ${fmt(deudaSaldo(d))}*\nEl interés ya fue descontado al inicio; se devuelve únicamente el capital.\n\nGracias por su confianza. 🤝\n_CORPOSEPI®_`;
+  }
+  const cuotas=deudaCuotas(d), lineas=cuotas.map(c=>`• ${fFechaR(c.fecha)}: ${fmt(c.interes)} — ${c.pagado?"✓ pagado":"⏳ pendiente"}`).join("\n");
+  const acum=deudaIntAcumulado(d), saldo=deudaSaldo(d);
+  return `Cordial saludo, *${d.nombre}*.\n\n📄 *Estado de su préstamo — CORPOSEPI®*\n\n• Fecha del préstamo: ${fFechaR(d.fecha)}\n• Capital: ${fmt(d.capital||0)} · interés ${d.tasa||0}% mensual (${fmt(deudaIntMes(d))}/mes)\n\n*Intereses (día ${d.diaPago||15}):*\n${lineas||"(aún no hay meses)"}\n\n*Interés acumulado pendiente: ${fmt(acum)}*\n*Saldo de capital: ${fmt(saldo)}*\n*Total a la fecha: ${fmt(saldo+acum)}*\n\nGracias por su confianza. 🤝\n_CORPOSEPI®_`;
+}
+function enviarEstadoDeuda(id){ const d=DEUDAS_FB[id]; if(!d)return; invAbrirWA(d.tel||"", estadoDeudaMsg(d)); }
 function borrarDeuda(id){ if(!DEUDAS_FB[id])return; fbdb.ref("rotativo_v1/deudas/"+id).remove().then(()=>toast("🗑 Deuda eliminada")).catch(e=>toast("⚠ "+e.message)); }
 function togglePagoMes(id,mesKey,pagar){ const d=DEUDAS_FB[id]; if(!d)return; const val=pagar?{fecha:hoy(),monto:deudaIntMes(d)}:null; fbdb.ref(`rotativo_v1/deudas/${id}/intPagados/${mesKey}`).set(val).then(()=>toast(pagar?"✅ Interés del mes marcado pagado":"↩ Interés del mes pendiente (acumula)")).catch(e=>toast("⚠ "+e.message)); }
 let abonoCapId=null;
