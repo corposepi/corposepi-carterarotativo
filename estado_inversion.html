@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Estado de Inversión · CORPOSEPI®</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  :root{ --mor:#7C3AED; --morc:#F5F0FF; --tx:#1F2937; --ts:#6B7280; --gb:#E5E7EB; --ve:#16A34A; --bg:#F7F7FB; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--tx);line-height:1.5}
+  .wrap{max-width:760px;margin:0 auto;padding:16px}
+  .top{background:linear-gradient(135deg,#5B21B6,#7C3AED);color:#fff;border-radius:16px;padding:22px 20px;margin-bottom:16px}
+  .top h1{margin:0 0 2px;font-size:20px;letter-spacing:.3px}
+  .top .sub{opacity:.9;font-size:13px}
+  .card{background:#fff;border:1px solid var(--gb);border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:8px 0 4px}
+  .kpi{background:var(--morc);border-radius:10px;padding:11px;text-align:center}
+  .kpi .l{font-size:11px;color:var(--ts)}
+  .kpi .v{font-weight:800;font-size:16px;color:var(--mor);margin-top:2px}
+  h2{font-size:16px;margin:6px 0 10px}
+  .meta{font-size:12px;color:var(--ts);margin-bottom:10px}
+  .tblwrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:520px}
+  th{background:#F3F0FB;color:#4C1D95;text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+  td{padding:8px 10px;border-bottom:1px solid #F0F0F5}
+  tr:last-child td{border-bottom:none}
+  .num{font-variant-numeric:tabular-nums;font-weight:700}
+  .gan{color:var(--ve);font-weight:700}
+  .fin{color:var(--mor);font-weight:800}
+  .foot{text-align:center;color:var(--ts);font-size:12px;margin:18px 0 30px}
+  .err{background:#FEF2F2;color:#B91C1C;border-radius:12px;padding:20px;text-align:center}
+  .badge{display:inline-block;background:#EDE9FE;color:#5B21B6;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="card">Cargando…</div></div>
+<script>
+const MESES=["","enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CO");
+const fF=d=>`${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+const fMes=d=>`${MESES[d.getMonth()+1]} ${d.getFullYear()}`;
+function periodos(iv){ return [{desde:iv.fecha,tasa:+iv.tasa||0}].concat(Object.values(iv.cambios||{}).map(c=>({desde:c.fecha,tasa:+c.tasa||0}))).sort((a,b)=>(a.desde||"").localeCompare(b.desde||"")); }
+function tasaEn(iv,d){ const ps=periodos(iv); let t=ps[0].tasa; ps.forEach(p=>{ if(new Date(p.desde+"T00:00:00")<=d) t=p.tasa; }); return t; }
+function schedule(iv){
+  const rows=[]; const now=new Date(); let value=+iv.capital||0; let cursor=new Date(iv.fecha+"T00:00:00"); const ps=periodos(iv); let g=0;
+  while(cursor<now && g<800){ g++;
+    let nm=new Date(cursor); nm.setMonth(nm.getMonth()+1);
+    let nc=null; ps.forEach(p=>{ const pd=new Date(p.desde+"T00:00:00"); if(pd>cursor && (!nc||pd<nc)) nc=pd; });
+    let end=new Date(nm); if(nc && nc<end) end=nc; if(end>now) end=new Date(now);
+    const t=tasaEn(iv,cursor); const frac=(end-cursor)/(nm-cursor); const nuevo=value*Math.pow(1+t/100,frac);
+    rows.push({desde:new Date(cursor),hasta:new Date(end),tasa:t,ini:value,gan:nuevo-value,fin:nuevo,frac}); value=nuevo; cursor=new Date(end);
+  }
+  return {rows,valor:value};
+}
+function tablaInv(iv,idx){
+  const sc=schedule(iv); const cap=+iv.capital||0; const tok=iv.token>0?Math.round(cap/iv.token):0;
+  const rows=sc.rows.map(r=>{ const label=r.frac>=0.999?fMes(r.desde):`${fF(r.desde)} → ${fF(r.hasta)}`; return `<tr><td>${label}</td><td class="num">${r.tasa}%</td><td class="num">${fmt(r.ini)}</td><td class="gan">+${fmt(r.gan)}</td><td class="fin">${fmt(r.fin)}</td></tr>`; }).join("");
+  const nCb=Object.keys(iv.cambios||{}).length;
+  return `<div class="card">
+    <h2>${idx?`Inversión ${idx} · `:""}Inicio ${fF(new Date(iv.fecha+"T00:00:00"))}</h2>
+    <div class="meta">Capital ${fmt(cap)} · ${tok} tokens de ${fmt(+iv.token||0)} c/u · interés compuesto${nCb?` <span class="badge">tasa variable</span>`:` al ${iv.tasa}% mensual`}</div>
+    <div class="kpis">
+      <div class="kpi"><div class="l">Capital</div><div class="v">${fmt(cap)}</div></div>
+      <div class="kpi"><div class="l">Valor a hoy</div><div class="v">${fmt(sc.valor)}</div></div>
+      <div class="kpi"><div class="l">Interés ganado</div><div class="v">${fmt(sc.valor-cap)}</div></div>
+    </div>
+    <div class="tblwrap"><table><thead><tr><th>Mes</th><th>Tasa</th><th>Valor inicio</th><th>Ganado</th><th>Valor fin</th></tr></thead><tbody>${rows}</tbody></table></div>
+  </div>`;
+}
+function render(nombre, invs){
+  let capT=0, valT=0, bloques="";
+  invs.forEach((iv,i)=>{ const sc=schedule(iv); capT+=(+iv.capital||0); valT+=sc.valor; bloques+=tablaInv(iv, invs.length>1?i+1:0); });
+  const resumen = invs.length>1 ? `<div class="card"><h2>Resumen total</h2><div class="kpis">
+      <div class="kpi"><div class="l">Capital invertido</div><div class="v">${fmt(capT)}</div></div>
+      <div class="kpi"><div class="l">Valor a hoy</div><div class="v">${fmt(valT)}</div></div>
+      <div class="kpi"><div class="l">Interés ganado</div><div class="v">${fmt(valT-capT)}</div></div></div></div>` : "";
+  document.getElementById("app").innerHTML=
+    `<div class="top"><h1>💎 Estado de inversión</h1><div class="sub">${nombre||""} · CORPOSEPI® · al ${fF(new Date())}</div></div>`+
+    resumen+bloques+
+    `<div class="foot">El valor se actualiza cada día con el interés compuesto.<br>Al retirar se devuelve el capital más el interés acumulado a esa fecha.<br><br>CORPOSEPI® · 320 833 1293</div>`;
+}
+function fail(m){ document.getElementById("app").innerHTML=`<div class="err">No se pudo cargar el estado.<br><small>${m}</small></div>`; }
+try{
+  firebase.initializeApp({apiKey:"AIzaSyARjZP37yHcNRtIFWXarSVvYJ4ZOChuZ54",authDomain:"corposepi-carnets.firebaseapp.com",databaseURL:"https://corposepi-carnets-default-rtdb.firebaseio.com",projectId:"corposepi-carnets"});
+  const db=firebase.database();
+  const q=new URLSearchParams(location.search);
+  const key=q.get("e");
+  if(key){
+    db.ref("estados_publicos/"+key).get().then(s=>{ const d=s.val(); if(!d||!d.invs||!d.invs.length) return fail("Estado no encontrado"); render(d.nombre, d.invs); }).catch(e=>fail(e.message));
+  } else fail("Falta el identificador del estado");
+}catch(e){ fail(e.message); }
+</script>
+</body>
+</html>
