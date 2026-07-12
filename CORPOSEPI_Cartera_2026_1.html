@@ -414,10 +414,10 @@ tr:hover td{background:#f7faff}
     <div class="pg" id="pg-factura">
       <div class="alert-b" style="background:linear-gradient(135deg,#EAF1FB,#F3F7FC);border-color:var(--azv)">
         <span style="font-size:22px">🧾</span>
-        <p style="color:var(--az)"><strong>Facturación estilo Siigo</strong> — Genera las facturas de pensión y matrícula mes a mes; las pagadas traen su <b>recibo de caja</b> que cruza la factura, y las pendientes quedan como <b>borrador proyectado</b> listas para enviar. Servicio educativo <b>sin IVA</b>.</p>
+        <p style="color:var(--az)"><strong>Facturación estilo Siigo</strong> — Las facturas de pensión y matrícula se arman <b>automáticamente</b> desde los pagos reales: las pagadas traen su <b>recibo de caja</b>, las vencidas quedan <b>emitidas (por cobrar)</b> y las futuras como <b>borrador proyectado</b>. Servicio educativo <b>sin IVA</b>. Usa <b>Emitir y numerar</b> para asignarles el número consecutivo oficial.</p>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn b-p b-sm" onclick="abrirFacCfg()">⚙️ Datos y numeración</button>
-          <button class="btn b-v b-sm" onclick="generarFacturas()">🧾 Generar / actualizar todo</button>
+          <button class="btn b-v b-sm" onclick="generarFacturas()">🧾 Emitir y numerar</button>
           <button class="btn b-o b-sm" onclick="abrirFacOtro()">➕ Otro concepto</button>
         </div>
       </div>
@@ -1933,15 +1933,60 @@ function rAcuerdos(){
 let FACT_CFG={}, FACTURAS={}, RECIBOS={};
 function facKpi(cls,l,v,s){ return `<div class="kpi ${cls}"><div class="kpi-l">${l}</div><div class="kpi-v">${v}</div><div class="kpi-s">${s||""}</div></div>`; }
 
+// Calcula TODAS las facturas/recibos en vivo desde las familias y pagos reales (sin escribir a Firebase)
+function derivarFacturas(){
+  const F={}, R={};
+  const idxAct=idxMesActual(), dia=new Date().getDate(), diaCorte=parseInt(CFG.diaCorte)||5, anio=new Date().getFullYear();
+  DB.forEach(f=>{
+    const cc=f.cc, nombre=(f.nombres+" "+(f.apellidos||"")).trim(), finMes=(f.finMes!=null?f.finMes:9);
+    for(let m=(f.inicio||0); m<=finMes; m++){
+      const esp=f.esperadoPorMes?.[m]||0; if(esp<=0) continue;
+      const mesKey=`${anio}-${String(m+2).padStart(2,"0")}`, id=`${cc}_p_${mesKey}`;
+      const vencido=(m<idxAct)||(m===idxAct&&dia>=diaCorte), pagado=(f.pagosMes?.[m]||0)>=esp;
+      const estado=(!vencido&&!pagado)?"borrador":(pagado?"pagada":"emitida");
+      const fa={id,cc,nombre,tipo:"pension",mesKey,concepto:`Pensión ${MESES_L[m+1]} ${anio}`,valor:esp,estado,num:null,numSeq:null,tel:f.celular||"",fechaEmision:hoy(),fechaVenc:`${mesKey}-${String(diaCorte).padStart(2,"0")}`,reciboId:null};
+      if(pagado){ const rid="r_"+id; fa.reciboId=rid; R[rid]={id:rid,facturaId:id,cc,nombre,valor:esp,concepto:fa.concepto,fecha:hoy(),medio:"—"}; }
+      F[id]=fa;
+    }
+    const mt=f.matricula||0;
+    if(mt>0){ const id=`${cc}_m`, pagM=f.matriculaPagada||0, pagadaTot=pagM>=mt;
+      const fa={id,cc,nombre,tipo:"matricula",concepto:`Matrícula ${anio}`,valor:mt,estado:pagadaTot?"pagada":"emitida",num:null,numSeq:null,tel:f.celular||"",fechaEmision:hoy(),reciboId:null};
+      if(pagM>0){ const rid="r_"+id; fa.reciboId=rid; R[rid]={id:rid,facturaId:id,cc,nombre,valor:pagM,concepto:(pagadaTot?`Matrícula ${anio}`:`Abono matrícula ${anio}`),fecha:hoy(),medio:"—"}; }
+      F[id]=fa;
+    }
+  });
+  return {facturas:F, recibos:R};
+}
+// Fusiona lo derivado (en vivo) con lo persistido (números oficiales, anuladas, otros conceptos)
+function facAll(){
+  const {facturas:der}=derivarFacturas(), out={};
+  Object.entries(der).forEach(([id,fa])=>{
+    const p=FACTURAS[id];
+    if(p&&p.estado==="anulada") out[id]={...fa,estado:"anulada",num:p.num||null,numSeq:p.numSeq||null,reciboId:null};
+    else if(p) out[id]={...fa,num:p.num||null,numSeq:p.numSeq||null,fechaEmision:p.fechaEmision||fa.fechaEmision};
+    else out[id]=fa;
+  });
+  Object.entries(FACTURAS).forEach(([id,fa])=>{ if(!out[id]) out[id]={...fa,id}; });
+  return out;
+}
+function recibosAll(){
+  const {recibos:der}=derivarFacturas(), out={...der};
+  Object.entries(RECIBOS).forEach(([id,r])=>{ out[id]={...r,id}; });
+  Object.keys(out).forEach(id=>{ const fa=FACTURAS[out[id].facturaId]; if(fa&&fa.estado==="anulada") delete out[id]; });
+  return out;
+}
+function getFactura(id){ return facAll()[id]; }
+function getRecibo(id){ return recibosAll()[id]; }
+
 function rFacturacion(){
   // filtro de familia (conserva selección)
   const selF=g("fac-flt-fam");
   if(selF){ const cur=selF.value; selF.innerHTML='<option value="">Todas las familias</option>'+DB.slice().sort((a,b)=>(a.nombres||"").localeCompare(b.nombres||"")).map(f=>`<option value="${f.cc}">${f.nombres} ${f.apellidos}</option>`).join(""); selF.value=cur; }
   const fFam=g("fac-flt-fam")?.value||"", fEst=g("fac-flt-est")?.value||"";
-  let arr=Object.entries(FACTURAS).map(([id,x])=>({id,...x}));
+  let arr=Object.values(facAll());
   const activas=arr.filter(x=>x.estado!=="anulada");
   const facturado=activas.filter(x=>x.estado==="emitida"||x.estado==="pagada").reduce((s,x)=>s+(x.valor||0),0);
-  const recaudado=Object.values(RECIBOS).reduce((s,r)=>{ const fa=FACTURAS[r.facturaId]; if(fa&&fa.estado==="anulada")return s; return s+(r.valor||0); },0);
+  const recaudado=Object.values(recibosAll()).reduce((s,r)=>s+(r.valor||0),0);
   const nBorr=activas.filter(x=>x.estado==="borrador").length;
   g("fac-kpis").innerHTML=[
     facKpi("az","Facturado (emitido)",fmt(facturado),activas.filter(x=>x.estado==="emitida"||x.estado==="pagada").length+" facturas"),
@@ -1954,7 +1999,7 @@ function rFacturacion(){
   arr.sort((a,b)=>(b.numSeq||0)-(a.numSeq||0)||(a.nombre||"").localeCompare(b.nombre||""));
   const badge=x=>x.estado==="pagada"?'<span class="bg" style="background:#DCFCE7;color:#15803D">Pagada</span>':x.estado==="emitida"?'<span class="bg" style="background:#FEF3C7;color:#92400E">Emitida</span>':x.estado==="borrador"?'<span class="bg" style="background:#F1F5F9;color:#64748B">Borrador</span>':'<span class="bg" style="background:#FEE2E2;color:#B91C1C">Anulada</span>';
   const el=g("fac-tabla");
-  if(!arr.length){el.innerHTML='<div class="empty" style="padding:34px"><div class="ei">🧾</div><h3>Sin facturas todavía</h3><p>Usa “🧾 Generar / actualizar todo” para crear las facturas de pensión y matrícula desde los pagos reales.</p></div>';return;}
+  if(!arr.length){el.innerHTML='<div class="empty" style="padding:34px"><div class="ei">🧾</div><h3>Sin datos para facturar</h3><p>Cuando haya familias con pensión o matrícula, sus facturas aparecerán aquí automáticamente.</p></div>';return;}
   el.innerHTML='<table><thead><tr><th>Núm</th><th>Familia</th><th>Concepto</th><th>Valor</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>'+arr.map(x=>`<tr>
     <td style="font-weight:700;color:var(--az)">${x.num||"—"}</td>
     <td style="font-size:12px">${x.nombre||""}</td>
@@ -2013,13 +2058,13 @@ function docRecibo(rc){
   </div>`;
 }
 let docCtx=null;
-function verFactura(id){ const fa=FACTURAS[id]; if(!fa){toast("Factura no encontrada");return;} docCtx={tipo:"factura",id}; g("doc-tit").textContent="🧾 Factura "+(fa.num||"borrador"); g("doc-body").innerHTML=docFactura({...fa,id}); ab("ov-doc"); }
-function verRecibo(id){ const rc=RECIBOS[id]; if(!rc){toast("Recibo no encontrado");return;} docCtx={tipo:"recibo",id}; g("doc-tit").textContent="🧾 Recibo "+(rc.num||""); g("doc-body").innerHTML=docRecibo(rc); ab("ov-doc"); }
+function verFactura(id){ const fa=getFactura(id); if(!fa){toast("Factura no encontrada");return;} docCtx={tipo:"factura",id}; g("doc-tit").textContent="🧾 Factura "+(fa.num||"por emitir"); g("doc-body").innerHTML=docFactura({...fa,id}); ab("ov-doc"); }
+function verRecibo(id){ const rc=getRecibo(id); if(!rc){toast("Recibo no encontrado");return;} docCtx={tipo:"recibo",id}; g("doc-tit").textContent="🧾 Recibo "+(rc.num||""); g("doc-body").innerHTML=docRecibo(rc); ab("ov-doc"); }
 function docEnviarWA(){
   if(!docCtx)return;
   let num,concepto,valor,tel,nombre,estado;
-  if(docCtx.tipo==="factura"){ const fa=FACTURAS[docCtx.id]; if(!fa)return; num=fa.num;concepto=fa.concepto;valor=fa.valor;tel=fa.tel;nombre=fa.nombre;estado=fa.estado; }
-  else { const rc=RECIBOS[docCtx.id]; if(!rc)return; num=rc.num;concepto=rc.concepto;valor=rc.valor;nombre=rc.nombre; const fa=rc.facturaId?FACTURAS[rc.facturaId]:null; tel=fa?.tel; estado="pagada"; }
+  if(docCtx.tipo==="factura"){ const fa=getFactura(docCtx.id); if(!fa)return; num=fa.num;concepto=fa.concepto;valor=fa.valor;tel=fa.tel;nombre=fa.nombre;estado=fa.estado; }
+  else { const rc=getRecibo(docCtx.id); if(!rc)return; num=rc.num;concepto=rc.concepto;valor=rc.valor;nombre=rc.nombre; const fa=rc.facturaId?getFactura(rc.facturaId):null; tel=fa?.tel; estado="pagada"; }
   const numTel=((tel||"")+"").replace(/\D/g,""); if(!numTel){toast("⚠ Esta familia no tiene celular");return;}
   const t=numTel.startsWith("57")?numTel:"57"+numTel;
   const est = estado==="pagada"?"*PAGADA* ✅":"*PENDIENTE DE PAGO*";
@@ -2029,47 +2074,30 @@ function docEnviarWA(){
   window.open(`https://wa.me/${t}?text=${encodeURIComponent(msg)}`,"_blank");
 }
 
-// ── Generar / actualizar facturas desde los pagos reales ──
-function generarFacturas(soloCc){
-  const fams = soloCc ? DB.filter(f=>String(f.cc)===String(soloCc)) : DB;
-  if(!fams.length){toast("No hay familias");return;}
-  const idxAct=idxMesActual(), dia=new Date().getDate(), diaCorte=parseInt(CFG.diaCorte)||5, anio=new Date().getFullYear();
-  const pfx=(FACT_CFG.prefijo||"CORPO");
-  let seq=parseInt(FACT_CFG.consecutivo)||1;
-  const nextNum=()=>{ const o={num:`${pfx}-${String(seq).padStart(4,"0")}`,numSeq:seq}; seq++; return o; };
+// ── Emitir / numerar oficialmente (persiste números consecutivos en Firebase) ──
+function generarFacturas(){
+  const {facturas:der, recibos:derR}=derivarFacturas();
+  const ids=Object.keys(der);
+  if(!ids.length){toast("No hay familias con datos para facturar");return;}
+  const pfx=(FACT_CFG.prefijo||"CORPO"); let seq=parseInt(FACT_CFG.consecutivo)||1;
+  // Orden estable para numerar: por familia, luego pensión por mes y matrícula al final
+  ids.sort((a,b)=>{ const A=der[a],B=der[b]; return (A.nombre||"").localeCompare(B.nombre||"") || (A.tipo>B.tipo?1:A.tipo<B.tipo?-1:0) || ((A.mesKey||"zzz")<(B.mesKey||"zzz")?-1:1); });
   const updates={};
-  fams.forEach(f=>{
-    const cc=f.cc, nombre=(f.nombres+" "+(f.apellidos||"")).trim(), finMes=(f.finMes!=null?f.finMes:9);
-    // PENSIÓN mes a mes
-    for(let m=(f.inicio||0); m<=finMes; m++){
-      const esp=f.esperadoPorMes?.[m]||0; if(esp<=0) continue;
-      const mesKey=`${anio}-${String(m+2).padStart(2,"0")}`, id=`${cc}_p_${mesKey}`, ex=FACTURAS[id]||{};
-      if(ex.estado==="anulada") continue;
-      const vencido=(m<idxAct)||(m===idxAct&&dia>=diaCorte), pagado=(f.pagosMes?.[m]||0)>=esp;
-      let num=ex.num||null, numSeq=ex.numSeq||null, estado;
-      if(!vencido && !pagado){ estado="borrador"; }
-      else { estado=pagado?"pagada":"emitida"; if(!num){ const nn=nextNum(); num=nn.num; numSeq=nn.numSeq; } }
-      const fa={cc,nombre,tipo:"pension",mesKey,concepto:`Pensión ${MESES_L[m+1]} ${anio}`,valor:esp,estado,num,numSeq,tel:f.celular||"",fechaEmision:ex.fechaEmision||hoy(),fechaVenc:`${mesKey}-${String(diaCorte).padStart(2,"0")}`,reciboId:null};
-      if(pagado){ const rid="r_"+id; fa.reciboId=rid; updates[`rotativo_v1/facturacion/recibos/${rid}`]={facturaId:id,num:`RC-${String(numSeq).padStart(4,"0")}`,cc,nombre,valor:esp,concepto:fa.concepto,fecha:(RECIBOS[rid]?.fecha)||hoy(),medio:RECIBOS[rid]?.medio||"—"}; }
-      else if(ex.reciboId){ updates[`rotativo_v1/facturacion/recibos/${ex.reciboId}`]=null; }
-      updates[`rotativo_v1/facturacion/facturas/${id}`]=fa;
+  ids.forEach(id=>{
+    const p=FACTURAS[id]; if(p&&p.estado==="anulada") return; // no tocar anuladas
+    const fa={...der[id]}; delete fa.id;
+    if(fa.estado==="borrador"){ // proyectada: se persiste pero sin consumir número
+      fa.num=p?.num||null; fa.numSeq=p?.numSeq||null;
+      updates[`rotativo_v1/facturacion/facturas/${id}`]=fa; return;
     }
-    // MATRÍCULA
-    const mt=f.matricula||0;
-    if(mt>0){
-      const id=`${cc}_m`, ex=FACTURAS[id]||{};
-      if(ex.estado!=="anulada"){
-        const pagM=f.matriculaPagada||0, pagadaTot=pagM>=mt;
-        let num=ex.num||null, numSeq=ex.numSeq||null; if(!num){ const nn=nextNum(); num=nn.num; numSeq=nn.numSeq; }
-        const fa={cc,nombre,tipo:"matricula",concepto:`Matrícula ${anio}`,valor:mt,estado:pagadaTot?"pagada":"emitida",num,numSeq,tel:f.celular||"",fechaEmision:ex.fechaEmision||hoy(),reciboId:null};
-        if(pagM>0){ const rid="r_"+id; fa.reciboId=rid; updates[`rotativo_v1/facturacion/recibos/${rid}`]={facturaId:id,num:`RC-${String(numSeq).padStart(4,"0")}`,cc,nombre,valor:pagM,concepto:(pagadaTot?`Matrícula ${anio}`:`Abono matrícula ${anio}`),fecha:(RECIBOS[rid]?.fecha)||hoy(),medio:RECIBOS[rid]?.medio||"—"}; }
-        else if(ex.reciboId){ updates[`rotativo_v1/facturacion/recibos/${ex.reciboId}`]=null; }
-        updates[`rotativo_v1/facturacion/facturas/${id}`]=fa;
-      }
-    }
+    let num=p?.num, numSeq=p?.numSeq;
+    if(!num){ num=`${pfx}-${String(seq).padStart(4,"0")}`; numSeq=seq; seq++; }
+    fa.num=num; fa.numSeq=numSeq;
+    if(fa.reciboId){ const r={...derR[fa.reciboId]}; delete r.id; r.num=`RC-${String(numSeq).padStart(4,"0")}`; r.fecha=RECIBOS[fa.reciboId]?.fecha||r.fecha; updates[`rotativo_v1/facturacion/recibos/${fa.reciboId}`]=r; }
+    updates[`rotativo_v1/facturacion/facturas/${id}`]=fa;
   });
   updates['rotativo_v1/facturacion/config/consecutivo']=seq;
-  fbdb.ref().update(updates).then(()=>toast("🧾 Facturas generadas / actualizadas")).catch(e=>toast("❌ "+e.message));
+  fbdb.ref().update(updates).then(()=>toast("🧾 Facturas emitidas y numeradas")).catch(e=>toast("❌ "+e.message));
 }
 
 // ── Configuración de facturación ──
@@ -2107,11 +2135,12 @@ function guardarFacOtro(){
   fbdb.ref().update(updates).then(()=>{toast("🧾 Factura creada");c("ov-facotro");}).catch(e=>toast("❌ "+e.message));
 }
 function anularFactura(id){
-  const fa=FACTURAS[id]; if(!fa)return;
-  if(!confirm(`¿Anular la factura ${fa.num||"(borrador)"} de ${fa.nombre}?`))return;
+  const fa=getFactura(id); if(!fa)return;
+  if(!confirm(`¿Anular la factura ${fa.num||"(sin número)"} de ${fa.nombre}?`))return;
+  const rec={cc:fa.cc||"",nombre:fa.nombre||"",tipo:fa.tipo||"",concepto:fa.concepto||"",valor:fa.valor||0,estado:"anulada",num:fa.num||null,numSeq:fa.numSeq||null,mesKey:fa.mesKey||null,fechaEmision:fa.fechaEmision||hoy(),reciboId:null};
   const updates={};
-  updates[`rotativo_v1/facturacion/facturas/${id}/estado`]="anulada";
-  if(fa.reciboId){ updates[`rotativo_v1/facturacion/recibos/${fa.reciboId}`]=null; updates[`rotativo_v1/facturacion/facturas/${id}/reciboId`]=null; }
+  updates[`rotativo_v1/facturacion/facturas/${id}`]=rec;
+  if(fa.reciboId) updates[`rotativo_v1/facturacion/recibos/${fa.reciboId}`]=null;
   fbdb.ref().update(updates).then(()=>toast("🚫 Factura anulada")).catch(e=>toast("❌ "+e.message));
 }
 
