@@ -82,19 +82,24 @@ function render(nombre, invs){
     `<div class="foot">El valor se actualiza cada día con el interés compuesto.<br>Al retirar se devuelve el capital más el interés acumulado a esa fecha.<br><br>CORPOSEPI® · 320 833 1293</div>`;
 }
 // ── Deudas / préstamos recibidos ──
-function dIntMes(dd){ return Math.round((dd.capital||0)*((dd.tasa||0)/100)); }
+function dCapitalizado(dd){ return Object.values(dd.capitalizaciones||{}).reduce((s,c)=>s+(c.monto||0),0); }
+function dCapitalActual(dd){ return (dd.capital||0)+dCapitalizado(dd); }
 function dAbonos(dd){ return Object.values(dd.abonos||{}).reduce((s,p)=>s+(p.monto||0),0); }
-function dSaldo(dd){ return Math.max(0,(dd.capital||0)-dAbonos(dd)); }
+function dSaldo(dd){ return Math.max(0, dCapitalActual(dd)-dAbonos(dd)); }
+function dCapEnFecha(dd, f){ let cap=(dd.capital||0); Object.values(dd.capitalizaciones||{}).forEach(x=>{ if((x.fecha||"")<f) cap+=(x.monto||0); }); return cap; }
+function dIntMes(dd){ return Math.round(dCapitalActual(dd)*((dd.tasa||0)/100)); }
 function dCuotas(dd){
   if(dd.tipoDeuda==="anticipado" || !dd.fecha) return [];
   const out=[]; const start=new Date(dd.fecha+"T00:00:00"); const dia=dd.diaPago||start.getDate()||15; const now=new Date();
-  if(start<=now){ const mk0=dd.fecha.slice(0,7); out.push({fecha:dd.fecha, interes:dIntMes(dd), pagado:!!(dd.intPagados&&dd.intPagados[mk0]), adelantado:true}); }
+  const cInt=f=>Math.round(dCapEnFecha(dd,f)*((dd.tasa||0)/100));
+  if(start<=now){ const mk0=dd.fecha.slice(0,7); out.push({fecha:dd.fecha, interes:cInt(dd.fecha), pagado:!!(dd.intPagados&&dd.intPagados[mk0]), adelantado:true}); }
   const y0=start.getFullYear(); let idx=start.getMonth()+1;
-  for(let k=0;k<400;k++){ const due=new Date(y0, idx, dia); if(due>now) break; const mk=due.getFullYear()+"-"+String(due.getMonth()+1).padStart(2,"0"); out.push({fecha:mk+"-"+String(dia).padStart(2,"0"), interes:dIntMes(dd), pagado:!!(dd.intPagados&&dd.intPagados[mk])}); idx++; }
+  for(let k=0;k<400;k++){ const due=new Date(y0, idx, dia); if(due>now) break; const mk=due.getFullYear()+"-"+String(due.getMonth()+1).padStart(2,"0"); const f=mk+"-"+String(dia).padStart(2,"0"); out.push({fecha:f, interes:cInt(f), pagado:!!(dd.intPagados&&dd.intPagados[mk])}); idx++; }
   return out;
 }
-function dAcum(dd){ return dCuotas(dd).filter(c=>!c.pagado).reduce((s,c)=>s+c.interes,0); }
+function dGenerado(dd){ return dCuotas(dd).reduce((s,c)=>s+c.interes,0); }
 function dPag(dd){ return dCuotas(dd).filter(c=>c.pagado).reduce((s,c)=>s+c.interes,0); }
+function dAcum(dd){ return Math.max(0, dGenerado(dd)-dPag(dd)-dCapitalizado(dd)); }
 function renderDeuda(nombre, dd){
   let bloques="";
   if(dd.tipoDeuda==="anticipado"){
@@ -107,14 +112,15 @@ function renderDeuda(nombre, dd){
         <div class="kpi"><div class="l">A devolver (capital)</div><div class="v">${fmt(saldo)}</div></div>
       </div></div>`;
   } else {
-    const cuotas=dCuotas(dd), acum=dAcum(dd), pag=dPag(dd), saldo=dSaldo(dd);
+    const cuotas=dCuotas(dd), acum=dAcum(dd), pag=dPag(dd), saldo=dSaldo(dd), capz=dCapitalizado(dd);
     const rows=cuotas.map(c=>`<tr><td>${fF(new Date(c.fecha+"T00:00:00"))}${c.adelantado?' <span class="badge">al prestar</span>':''}</td><td class="num">${fmt(c.interes)}</td><td>${c.pagado?'<span class="gan">✓ pagado</span>':'<span style="color:#B91C1C;font-weight:700">⏳ pendiente</span>'}</td></tr>`).join("");
     bloques=`<div class="card"><h2>Interés mensual</h2>
-      <div class="meta">Capital ${fmt(dd.capital)} · ${dd.tasa}% mensual (${fmt(dIntMes(dd))}/mes) · día ${dd.diaPago}${dd.fecha?` · desde ${fF(new Date(dd.fecha+"T00:00:00"))}`:""}</div>
+      <div class="meta">Capital ${fmt(dCapitalActual(dd))}${capz>0?` (inicial ${fmt(dd.capital)} + ${fmt(capz)} capitalizado)`:""} · ${dd.tasa}% mensual (${fmt(dIntMes(dd))}/mes) · día ${dd.diaPago}${dd.fecha?` · desde ${fF(new Date(dd.fecha+"T00:00:00"))}`:""}</div>
       <div class="kpis">
         <div class="kpi"><div class="l">Saldo capital</div><div class="v">${fmt(saldo)}</div></div>
         <div class="kpi"><div class="l">Interés acumulado</div><div class="v">${fmt(acum)}</div></div>
-        <div class="kpi"><div class="l">Interés pagado</div><div class="v">${fmt(pag)}</div></div>
+        <div class="kpi"><div class="l">Interés retirado</div><div class="v">${fmt(pag)}</div></div>
+        ${capz>0?`<div class="kpi"><div class="l">Convertido a capital</div><div class="v">${fmt(capz)}</div></div>`:""}
       </div>
       <div class="tblwrap"><table><thead><tr><th>Mes (día ${dd.diaPago})</th><th>Interés</th><th>Estado</th></tr></thead><tbody>${rows||'<tr><td colspan="3">Aún no hay meses.</td></tr>'}</tbody></table></div>
     </div>`;
