@@ -81,6 +81,48 @@ function render(nombre, invs){
     resumen+bloques+
     `<div class="foot">El valor se actualiza cada día con el interés compuesto.<br>Al retirar se devuelve el capital más el interés acumulado a esa fecha.<br><br>CORPOSEPI® · 320 833 1293</div>`;
 }
+// ── Deudas / préstamos recibidos ──
+function dIntMes(dd){ return Math.round((dd.capital||0)*((dd.tasa||0)/100)); }
+function dAbonos(dd){ return Object.values(dd.abonos||{}).reduce((s,p)=>s+(p.monto||0),0); }
+function dSaldo(dd){ return Math.max(0,(dd.capital||0)-dAbonos(dd)); }
+function dCuotas(dd){
+  if(dd.tipoDeuda==="anticipado" || !dd.fecha) return [];
+  const out=[]; const start=new Date(dd.fecha+"T00:00:00"); const dia=dd.diaPago||start.getDate()||15;
+  const now=new Date(); const y0=start.getFullYear(); let idx=start.getMonth()+1;
+  for(let k=0;k<400;k++){ const due=new Date(y0, idx, dia); if(due>now) break; const mk=due.getFullYear()+"-"+String(due.getMonth()+1).padStart(2,"0"); out.push({fecha:mk+"-"+String(dia).padStart(2,"0"), interes:dIntMes(dd), pagado:!!(dd.intPagados&&dd.intPagados[mk])}); idx++; }
+  return out;
+}
+function dAcum(dd){ return dCuotas(dd).filter(c=>!c.pagado).reduce((s,c)=>s+c.interes,0); }
+function dPag(dd){ return dCuotas(dd).filter(c=>c.pagado).reduce((s,c)=>s+c.interes,0); }
+function renderDeuda(nombre, dd){
+  let bloques="";
+  if(dd.tipoDeuda==="anticipado"){
+    const ia=Math.round((dd.capital||0)*(dd.tasa||0)/100), neto=(dd.capital||0)-ia, saldo=dSaldo(dd);
+    bloques=`<div class="card"><h2>Interés anticipado</h2>
+      <div class="meta">Capital ${fmt(dd.capital)} · ${dd.tasa}% (descontado al inicio)${dd.fecha?` · desde ${fF(new Date(dd.fecha+"T00:00:00"))}`:""}</div>
+      <div class="kpis">
+        <div class="kpi"><div class="l">Interés descontado</div><div class="v">${fmt(ia)}</div></div>
+        <div class="kpi"><div class="l">Neto entregado</div><div class="v">${fmt(neto)}</div></div>
+        <div class="kpi"><div class="l">A devolver (capital)</div><div class="v">${fmt(saldo)}</div></div>
+      </div></div>`;
+  } else {
+    const cuotas=dCuotas(dd), acum=dAcum(dd), pag=dPag(dd), saldo=dSaldo(dd);
+    const rows=cuotas.map(c=>`<tr><td>${fF(new Date(c.fecha+"T00:00:00"))}</td><td class="num">${fmt(c.interes)}</td><td>${c.pagado?'<span class="gan">✓ pagado</span>':'<span style="color:#B91C1C;font-weight:700">⏳ pendiente</span>'}</td></tr>`).join("");
+    bloques=`<div class="card"><h2>Interés mensual</h2>
+      <div class="meta">Capital ${fmt(dd.capital)} · ${dd.tasa}% mensual (${fmt(dIntMes(dd))}/mes) · día ${dd.diaPago}${dd.fecha?` · desde ${fF(new Date(dd.fecha+"T00:00:00"))}`:""}</div>
+      <div class="kpis">
+        <div class="kpi"><div class="l">Saldo capital</div><div class="v">${fmt(saldo)}</div></div>
+        <div class="kpi"><div class="l">Interés acumulado</div><div class="v">${fmt(acum)}</div></div>
+        <div class="kpi"><div class="l">Interés pagado</div><div class="v">${fmt(pag)}</div></div>
+      </div>
+      <div class="tblwrap"><table><thead><tr><th>Mes (día ${dd.diaPago})</th><th>Interés</th><th>Estado</th></tr></thead><tbody>${rows||'<tr><td colspan="3">Aún no hay meses.</td></tr>'}</tbody></table></div>
+    </div>`;
+  }
+  document.getElementById("app").innerHTML=
+    `<div class="top"><h1>🏦 Estado de préstamo</h1><div class="sub">${nombre||""} · CORPOSEPI® · al ${fF(new Date())}</div></div>`+
+    bloques+
+    `<div class="foot">Estado de su préstamo con CORPOSEPI®.<br>El interés no pagado se acumula (simple, sin interés sobre interés).<br><br>CORPOSEPI® · 320 833 1293</div>`;
+}
 function fail(m){ document.getElementById("app").innerHTML=`<div class="err">No se pudo cargar el estado.<br><small>${m}</small></div>`; }
 try{
   firebase.initializeApp({apiKey:"AIzaSyARjZP37yHcNRtIFWXarSVvYJ4ZOChuZ54",authDomain:"corposepi-carnets.firebaseapp.com",databaseURL:"https://corposepi-carnets-default-rtdb.firebaseio.com",projectId:"corposepi-carnets"});
@@ -88,7 +130,7 @@ try{
   const q=new URLSearchParams(location.search);
   const key=q.get("e");
   if(key){
-    db.ref("estados_publicos/"+key).get().then(s=>{ const d=s.val(); if(!d||!d.invs||!d.invs.length) return fail("Estado no encontrado"); render(d.nombre, d.invs); }).catch(e=>fail(e.message));
+    db.ref("estados_publicos/"+key).get().then(s=>{ const d=s.val(); if(!d) return fail("Estado no encontrado"); if(d.tipo==="deuda" && d.deuda) return renderDeuda(d.nombre, d.deuda); if(!d.invs||!d.invs.length) return fail("Estado no encontrado"); render(d.nombre, d.invs); }).catch(e=>fail(e.message));
   } else fail("Falta el identificador del estado");
 }catch(e){ fail(e.message); }
 </script>
