@@ -287,6 +287,7 @@ tr:hover td{background:#f7faff}
   <button class="nb on" onclick="ir('dash',this)">📊 Dashboard</button>
   <button class="nb" onclick="ir('padres',this)">👨‍👩‍👧 Padres de Familia <span class="nbg" id="nb-p">0</span></button>
   <button class="nb" onclick="ir('mora',this)">⚠️ Pendientes de Pago <span class="nbg" id="nb-m">0</span></button>
+  <button class="nb" onclick="ir('acuerdos',this)">🤝 Acuerdos de Pago <span class="nbg" id="nb-ac">0</span></button>
   <button class="nb" onclick="ir('matricula',this)">🎓 Matrículas</button>
   <div class="sb-sec">Gestión</div>
   <button class="nb" onclick="ir('msg',this)">💬 Mensajes WA</button>
@@ -367,6 +368,18 @@ tr:hover td{background:#f7faff}
         <div class="card-h"><h3>⚠️ Pendientes de Pago</h3><button class="btn b-w b-sm" onclick="waMasivoMora()">💬 WA a todas</button></div>
         <div id="mora-t"></div>
       </div>
+    </div>
+
+    <!-- ACUERDOS DE PAGO -->
+    <div class="pg" id="pg-acuerdos">
+      <div class="alert-b" style="background:linear-gradient(135deg,#EAF7EE,#F2FBF5);border-color:#16A34A">
+        <span style="font-size:22px">🤝</span>
+        <p style="color:#15803D"><strong>Acuerdos con propuesta del papá</strong> — Envíele un <b>formato en línea</b>: el papá ve su deuda y propone sus fechas y montos. Usted revisa, <b>acepta o contra-propone</b>, y al aceptar se guarda el acuerdo y sale el WhatsApp de confirmación.</p>
+      </div>
+      <div class="card"><div class="card-h"><h3>📨 Propuestas por revisar</h3></div><div id="ac-nuevas"></div></div>
+      <div class="card"><div class="card-h"><h3>⏳ Formatos enviados (esperando respuesta)</h3></div><div id="ac-espera"></div></div>
+      <div class="card"><div class="card-h"><h3>✅ Acuerdos aceptados</h3></div><div id="ac-listos"></div></div>
+      <div class="card"><div class="card-h"><h3>📤 Enviar formato de acuerdo</h3></div><div id="ac-enviar"></div></div>
     </div>
 
     <!-- MATRÍCULAS -->
@@ -675,6 +688,7 @@ tr:hover td{background:#f7faff}
   </div>
   <div class="mo-f">
     <button class="btn b-o" onclick="c('ov-acu')">Cancelar</button>
+    <button class="btn b-o" onclick="enviarContrapropuesta()" title="Enviar estas cuotas al papá para que las confirme">↩️ Contrapropuesta</button>
     <button class="btn b-v" onclick="guardarAcuerdo(false)">✓ Guardar</button>
     <button class="btn b-w" onclick="guardarAcuerdo(true)">📲 Guardar y enviar confirmación</button>
   </div>
@@ -704,6 +718,7 @@ const idxMesActual=()=>Math.max(-1,Math.min(9,new Date().getMonth()-1)); // hoy 
 let FAMILIAS=[];   // familias_v3 en vivo
 let PAGOS={};      // pagos_v3 en vivo
 let ACUERDOS={};   // rotativo_v1/acuerdos en vivo (acuerdos de pago por cédula)
+let PROPUESTAS={}; // propuestas_acuerdo en vivo (formato que el papá propone por link público)
 let OBLIGACIONES={}; // rotativo_v1/obligaciones en vivo (para asignar cuotas del acuerdo)
 let DB=[];         // adaptado al modelo de esta app (se reconstruye en cada cambio)
 let paso=1, eCount=0, editI=-1, pagoI=-1, waI=-1, fichaI=-1;
@@ -828,6 +843,7 @@ const PAGES={
   dash:{el:"pg-dash",tit:"📊 Dashboard",sub:"Madrid, Cundinamarca · CORPOSEPI® · Periodo 2026",exp:false},
   padres:{el:"pg-padres",tit:"👨‍👩‍👧 Padres de Familia",sub:"Gestión de familias y cartera educativa",exp:true},
   mora:{el:"pg-mora",tit:"⚠️ Pendientes de Pago",sub:"Familias con pagos vencidos — acción requerida",exp:false},
+  acuerdos:{el:"pg-acuerdos",tit:"🤝 Acuerdos de Pago",sub:"Propuestas de los papás — revisar, aceptar o contra-proponer",exp:false},
   matricula:{el:"pg-matricula",tit:"🎓 Matrículas 2026",sub:"Control de matrículas — pagado y pendiente · sin interés",exp:false},
   msg:{el:"pg-msg",tit:"💬 Mensajes WhatsApp",sub:"Recordatorios y notificaciones automáticas",exp:false},
   flujo:{el:"pg-flujo",tit:"📈 Flujo de Caja",sub:"Proyección financiera CORPOSEPI® 2026",exp:false},
@@ -850,6 +866,7 @@ function ir(id,btn){
   if(id==="dash")rDash();
   if(id==="padres")rPadres();
   if(id==="mora")rMora();
+  if(id==="acuerdos")rAcuerdos();
   if(id==="matricula")rMatriculas();
   if(id==="msg"){prevMsg();rHistWA();}
   if(id==="flujo")rFlujo();
@@ -935,6 +952,8 @@ function rDash(){
 function actualizarBadges(){
   g("nb-p").textContent=DB.length;
   g("nb-m").textContent=DB.filter(f=>f.estado==="mora").length;
+  const nAc=Object.values(PROPUESTAS).filter(p=>p.estado==="propuesta").length;
+  const bAc=g("nb-ac"); if(bAc){ bAc.textContent=nAc; bAc.style.background=nAc>0?"#16A34A":""; bAc.style.color=nAc>0?"#fff":""; }
 }
 
 // ═══════════ RENDER PADRES ═══════════
@@ -1587,7 +1606,7 @@ function toast(msg,dur=3200){
 
 
 // ═══════════ ACUERDOS DE PAGO ═══════════
-let acuIdx=-1, acuRows=[];
+let acuIdx=-1, acuRows=[], acuPropCc=null;
 const CONCEPTOS_ACU=["Mes en curso","Atrasos","Pensión + atrasos","Matrícula","Otro"];
 const fFecha=iso=>{ if(!iso)return"—"; const p=(""+iso).split("-"); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:iso; };
 function acuProxima(a){
@@ -1595,7 +1614,7 @@ function acuProxima(a){
   return pend[0]?fFecha(pend[0]):"—";
 }
 function abrirAcuerdo(idx){
-  acuIdx=idx; const f=DB[idx];
+  acuIdx=idx; acuPropCc=null; const f=DB[idx];
   g("acu-n").textContent=(f.nombres+" "+(f.apellidos||"")).trim();
   g("acu-resumen").innerHTML=`Total pendiente en pensiones: <b>${fmt(f.deuda||0)}</b>${(f.matriculaSaldo||0)>0?` · Saldo matrícula: <b>${fmt(f.matriculaSaldo)}</b>`:""}`;
   g("acu-nota").value=f.acuerdo?.nota||"";
@@ -1654,6 +1673,7 @@ function guardarAcuerdo(enviar){
   const acu={creado:hoy(),nota:g("acu-nota").value||"",cuotas};
   fbdb.ref('rotativo_v1/acuerdos/'+f.cc).set(acu)
     .then(()=>{
+      if(acuPropCc){ fbdb.ref('propuestas_acuerdo/'+acuPropCc).update({estado:'aceptado', acordado:{cuotas:acu.cuotas.map(x=>({fecha:x.fecha,monto:x.monto})), fecha:hoy()}}); acuPropCc=null; }
       toast("✅ Acuerdo guardado en la nube ☁️");
       if(enviar) enviarAcuerdoWA(f.cc,acu); else c("ov-acu");
     })
@@ -1669,6 +1689,123 @@ function enviarAcuerdoWA(cc,acu){
   c("ov-acu");
   window.open(`https://wa.me/${tel}?text=${msg}`,"_blank");
   toast("💬 WhatsApp abierto con la confirmación del acuerdo");
+}
+
+// ═══════════ FORMATO DE ACUERDO CON PROPUESTA DEL PAPÁ (link público) ═══════════
+// Desglose de la mora como arreglo estructurado (para el snapshot del formato)
+function desgloseMoraArr(f){
+  const idxAct=idxMesActual(), dia=new Date().getDate(), diaCorte=parseInt(CFG.diaCorte)||5;
+  const finMes=(f.finMes!=null?f.finMes:9), out=[];
+  for(let m=(f.inicio||0);m<=Math.min(idxAct,finMes);m++){
+    const vencido=(m<idxAct)||(m===idxAct&&dia>=diaCorte); if(!vencido)continue;
+    const gap=Math.max(0,(f.esperadoPorMes?.[m]||0)-(f.pagosMes?.[m]||0));
+    if(gap>0) out.push({mes:MESES_L[m+1], monto:gap});
+  }
+  return out;
+}
+// URL pública del formato para esta familia
+function formatoLink(cc){ const base=location.origin+location.pathname.replace(/[^/]*$/,''); return base+"acuerdo_pago.html?cc="+cc; }
+// Envía (o reenvía) el formato: guarda el snapshot de la deuda y abre WhatsApp con el link
+function enviarFormato(cc){
+  const f=DB.find(x=>String(x.cc)===String(cc)); if(!f){toast("⚠ Familia no encontrada");return;}
+  if((f.deuda||0)<=0){toast("Esta familia está al día");return;}
+  const ex=PROPUESTAS[cc];
+  if(ex && ex.estado==="propuesta" && !confirm("Esta familia ya envió una propuesta. Reenviar el formato la reinicia. ¿Continuar?")) return;
+  const now=new Date(), fin=new Date(now.getFullYear(),now.getMonth()+1,0);
+  const fechaLimite=fin.getFullYear()+"-"+String(fin.getMonth()+1).padStart(2,"0")+"-"+String(fin.getDate()).padStart(2,"0");
+  const prop={estado:"enviado", nombre:(f.nombres+" "+(f.apellidos||"")).trim(), tel:f.celular||"",
+    estudiantes:(f.estudiantes||[]).map(e=>e.nombre), total:f.deuda||0, desglose:desgloseMoraArr(f),
+    mesActual:mesLabel(mesKeyHoy()), fechaLimite, fechaEnvio:hoy()};
+  fbdb.ref("propuestas_acuerdo/"+cc).set(prop)
+    .then(()=>{ toast("☁️ Formato enviado"); abrirFormatoWA(cc,"enviado"); })
+    .catch(e=>toast("❌ "+e.message));
+}
+// Abre WhatsApp con el link del formato (tipo: 'enviado' = pedir propuesta / 'contra' = revisar ajustes)
+function abrirFormatoWA(cc,tipo){
+  const p=PROPUESTAS[cc]||{}, f=DB.find(x=>String(x.cc)===String(cc));
+  const num=((p.tel||f?.celular||"")+"").replace(/\D/g,""); if(!num){toast("⚠ Esta familia no tiene celular");return;}
+  const tel=num.startsWith("57")?num:"57"+num;
+  const nombre=p.nombre||((f?.nombres||"")+" "+(f?.apellidos||"")).trim();
+  const fl=fFecha(p.fechaLimite), link=formatoLink(cc);
+  const msg = (tipo==="contra")
+    ? `Cordial saludo, familia *${nombre}* 🙏\n\nGracias por su propuesta. La revisamos y le proponemos unos *ajustes* en las fechas y montos. Por favor ábralos y, si está de acuerdo, *confírmelos* (o envíe una nueva propuesta):\n🔗 ${link}\n\nLa meta es quedar al día antes del *${fl}*.\n📞 320 833 1293\n_CORPOSEPI®_`
+    : `Cordial saludo, familia *${nombre}* 🙏\n\nPara ponernos al día de forma organizada, le compartimos un *formato de acuerdo de pago* en línea. Allí verá el detalle de lo pendiente y podrá *proponer sus propias fechas y montos* de pago:\n🔗 ${link}\n\nComplete su propuesta y envíela; nosotros la revisamos y le confirmamos. La meta es quedar al día antes del *${fl}*.\n📞 320 833 1293\n_CORPOSEPI®_`;
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,"_blank");
+  toast("💬 WhatsApp abierto con el link del formato");
+}
+// Abre el modal de acuerdo precargado con la propuesta del papá (para aceptar o contra-proponer)
+function revisarPropuesta(cc){
+  const idx=DB.findIndex(x=>String(x.cc)===String(cc));
+  if(idx<0){toast("⚠ Familia no encontrada");return;}
+  const p=PROPUESTAS[cc]||{}, cu=(p.propuesta?.cuotas)||[];
+  acuIdx=idx; acuPropCc=cc; const f=DB[idx];
+  g("acu-n").textContent=(f.nombres+" "+(f.apellidos||"")).trim();
+  const tot=cu.reduce((s,c)=>s+(parseInt(c.monto)||0),0);
+  g("acu-resumen").innerHTML=`Propuesta del papá · Deuda <b>${fmt(p.total||f.deuda||0)}</b> · Propone <b>${fmt(tot)}</b>${(p.propuesta?.obs)?`<br><i>"${p.propuesta.obs}"</i>`:""}`;
+  g("acu-nota").value=p.propuesta?.obs||"";
+  acuRows = cu.length ? cu.map(c=>({monto:c.monto,fecha:c.fecha,concepto:"Pensión + atrasos"})) : [{monto:"",fecha:"",concepto:"Pensión + atrasos"}];
+  acuRender(); ab("ov-acu");
+}
+// Envía las cuotas actuales del modal al papá como contrapropuesta (no finaliza el acuerdo)
+function enviarContrapropuesta(){
+  const f=DB[acuIdx]; if(!f){toast("⚠ Abra una propuesta primero");return;}
+  const cc=acuPropCc||f.cc;
+  const cuotas=acuRows.filter(c=>(parseInt(c.monto)||0)>0&&c.fecha).map(c=>({monto:parseInt(c.monto),fecha:c.fecha,concepto:c.concepto||"Pensión + atrasos"}));
+  if(!cuotas.length){toast("⚠ Agrega al menos una cuota con monto y fecha");return;}
+  const updates={};
+  updates["propuestas_acuerdo/"+cc+"/contrapropuesta"]={cuotas,obs:g("acu-nota").value||"",fecha:hoy()};
+  updates["propuestas_acuerdo/"+cc+"/estado"]="contrapropuesta";
+  fbdb.ref().update(updates)
+    .then(()=>{ acuPropCc=null; c("ov-acu"); abrirFormatoWA(cc,"contra"); })
+    .catch(e=>toast("❌ "+e.message));
+}
+function descartarPropuesta(cc){
+  if(!confirm("¿Descartar esta propuesta/formato de la familia?")) return;
+  fbdb.ref("propuestas_acuerdo/"+cc).remove().then(()=>toast("🗑 Descartado")).catch(e=>toast("❌ "+e.message));
+}
+const AC_EST_LBL={enviado:"📤 Enviado",propuesta:"📨 Propuso",contrapropuesta:"↩️ Contra",aceptado:"✅ Aceptado",rechazado:"✕ Rechazado"};
+function rAcuerdos(){
+  const ent=Object.entries(PROPUESTAS);
+  const nuevas=ent.filter(([cc,p])=>p.estado==="propuesta");
+  const espera=ent.filter(([cc,p])=>p.estado==="enviado"||p.estado==="contrapropuesta");
+  const listos=ent.filter(([cc,p])=>p.estado==="aceptado");
+  // Propuestas por revisar
+  g("ac-nuevas").innerHTML = nuevas.length ? nuevas.map(([cc,p])=>{
+    const cu=(p.propuesta?.cuotas)||[], tot=cu.reduce((s,c)=>s+(parseInt(c.monto)||0),0), cubre=tot>=(p.total||0);
+    return `<div style="border:1px solid var(--gb);border-left:4px solid ${cubre?'#16A34A':'#F59E0B'};border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+        <div><b>${p.nombre}</b><div style="font-size:11px;color:var(--ts)">${(p.estudiantes||[]).join(", ")}</div></div>
+        <div style="text-align:right"><div style="font-size:11px;color:var(--ts)">Deuda ${fmt(p.total||0)}</div><div style="font-weight:800;color:${cubre?'#16A34A':'#B91C1C'}">Propone ${fmt(tot)}</div></div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;line-height:1.7">${cu.map(c=>`• <b>${fFecha(c.fecha)}</b>: ${fmt(c.monto)}`).join("<br>")}</div>
+      ${p.propuesta?.obs?`<div style="font-size:11px;color:var(--ts);margin-top:5px;font-style:italic">"${p.propuesta.obs}"</div>`:""}
+      ${!cubre?`<div style="font-size:11px;color:#B91C1C;font-weight:700;margin-top:5px">⚠ Propone ${fmt((p.total||0)-tot)} menos que la deuda</div>`:""}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn b-v b-sm" onclick="revisarPropuesta('${cc}')">✏️ Revisar y aceptar</button>
+        <button class="btn b-o b-sm" onclick="revisarPropuesta('${cc}')">↩️ Contra-proponer</button>
+        <button class="btn b-o b-sm" onclick="abrirFormatoWA('${cc}','enviado')">💬 Reenviar link</button>
+        <button class="ab a-dl" onclick="descartarPropuesta('${cc}')" title="Descartar">🗑</button>
+      </div></div>`;
+  }).join("") : '<div class="empty" style="padding:24px"><div class="ei">📭</div><p>No hay propuestas nuevas por revisar.</p></div>';
+  // Enviados esperando respuesta
+  g("ac-espera").innerHTML = espera.length ? espera.map(([cc,p])=>{
+    const est=p.estado==="contrapropuesta"?"↩️ Contrapropuesta enviada · esperando confirmación":"📤 Formato enviado · esperando propuesta";
+    return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--gb);padding:9px 0">
+      <div><b>${p.nombre}</b><div style="font-size:11px;color:var(--ts)">${est} · desde ${fFecha(p.fechaEnvio)}</div></div>
+      <div style="display:flex;gap:6px"><button class="ab a-wa" onclick="abrirFormatoWA('${cc}','${p.estado==='contrapropuesta'?'contra':'enviado'}')">💬 Reenviar</button><button class="ab a-dl" onclick="descartarPropuesta('${cc}')">🗑</button></div>
+    </div>`;
+  }).join("") : '<div style="padding:14px;color:var(--ts);font-size:13px">Nada pendiente de respuesta.</div>';
+  // Aceptados
+  g("ac-listos").innerHTML = listos.length ? listos.map(([cc,p])=>{
+    const a=ACUERDOS[cc], cu=(a?.cuotas)||(p.propuesta?.cuotas)||[], tot=cu.reduce((s,c)=>s+(parseInt(c.monto)||0),0);
+    return `<div style="border-bottom:1px solid var(--gb);padding:9px 0"><div style="display:flex;justify-content:space-between"><b>${p.nombre}</b><span style="color:#16A34A;font-weight:800">${fmt(tot)}</span></div><div style="font-size:12px;color:var(--ts);margin-top:3px">${cu.map(c=>`${fFecha(c.fecha)}: ${fmt(c.monto)}`).join(" · ")||"—"}</div></div>`;
+  }).join("") : '<div style="padding:14px;color:var(--ts);font-size:13px">Aún no hay acuerdos aceptados.</div>';
+  // Enviar formato (familias con deuda)
+  const conDeuda=DB.filter(f=>(f.deuda||0)>0).sort((a,b)=>(b.deuda||0)-(a.deuda||0));
+  g("ac-enviar").innerHTML = conDeuda.length ? '<table><thead><tr><th>Familia</th><th>Deuda</th><th>Estado</th><th></th></tr></thead><tbody>'+conDeuda.map(f=>{
+    const p=PROPUESTAS[f.cc], est=p?(AC_EST_LBL[p.estado]||"—"):"—";
+    return `<tr><td>${f.nombres} ${f.apellidos}<div style="font-size:10px;color:var(--ts)">${(f.estudiantes||[]).map(e=>e.nombre).join(", ")}</div></td><td style="color:var(--ro);font-weight:700">${fmt(f.deuda)}</td><td style="font-size:12px">${est}</td><td><button class="ab a-wa" onclick="enviarFormato('${f.cc}')">📤 ${p?"Reenviar":"Enviar"}</button></td></tr>`;
+  }).join("")+'</tbody></table>' : '<div style="padding:14px;color:var(--ts)">Ninguna familia con deuda.</div>';
 }
 
 // ═══════════ ABRIR MÓDULO ROTATIVO ═══════════
@@ -1700,6 +1837,7 @@ fbdb.ref('familias_v3').on('value',snap=>{
 });
 fbdb.ref('pagos_v3').on('value',snap=>{ PAGOS=snap.val()||{}; refrescarVista(); });
 fbdb.ref('rotativo_v1/acuerdos').on('value',snap=>{ ACUERDOS=snap.val()||{}; refrescarVista(); });
+fbdb.ref('propuestas_acuerdo').on('value',snap=>{ PROPUESTAS=snap.val()||{}; if(document.querySelector('.pg.on')?.id==='pg-acuerdos')rAcuerdos(); actualizarBadges(); });
 fbdb.ref('rotativo_v1/obligaciones').on('value',snap=>{ OBLIGACIONES=snap.val()||{}; });
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}</script>
