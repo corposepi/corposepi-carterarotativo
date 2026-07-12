@@ -26,6 +26,8 @@
   .meta{background:#FFF7E6;border:1px solid #FCD34D;border-radius:11px;padding:12px;font-size:13px;margin-top:12px;color:#92400E}
   .cond{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:11px;padding:12px 14px;font-size:12.5px;margin-top:12px;color:#1E40AF}
   .cond li{margin:4px 0 4px 18px}
+  .espera{background:#FEF2F2;border:1.5px solid #FCA5A5;border-radius:11px;padding:12px 14px;font-size:12.5px;margin-top:12px;color:#991B1B}
+  .hint{font-size:10.5px;color:var(--azv);font-weight:700;margin-top:5px}
   .cuota{border:1px solid var(--gb);border-radius:11px;padding:11px;margin-bottom:9px;background:#fff}
   .crow{display:grid;grid-template-columns:1.1fr 1fr auto;gap:8px;align-items:end}
   label{font-size:11px;color:var(--ts);font-weight:700;display:block;margin-bottom:3px}
@@ -96,6 +98,8 @@ function render(){
   const total=P.total||0;
   const desg=(P.desglose||[]);
   const fl=P.fechaLimite||"";
+  const pm=P.pensionMes||0;
+  const mesNom=(P.mesActual||"este mes").split(" ")[0];
 
   // Bloque de deuda + condiciones (común)
   const cabecera=`
@@ -108,12 +112,13 @@ function render(){
     <div class="meta">🎯 <b>Meta:</b> quedar completamente al día <b>antes del ${fFecha(fl)}</b> (último día de ${P.mesActual||"este mes"}).</div>
     <div class="cond">Para que su propuesta sea válida, tenga en cuenta:
       <ul>
-        <li><b>Un primer abono pronto</b> para iniciar el acuerdo.</li>
-        <li>Incluir la <b>pensión del mes en curso</b> dentro del plan.</li>
-        <li>Cada cuota con <b>fecha concreta</b> (día/mes), la última <b>a más tardar el ${fFecha(fl)}</b>.</li>
+        <li>El <b>primer abono es la pensión de ${mesNom}${pm>0?` (${fmt(pm)})`:""}</b>, a pagar <b>máximo 5 días</b> después de este acuerdo.</li>
+        <li>El <b>resto</b> lo distribuye como prefiera, pero <b>todo antes del ${fFecha(fl)}</b>.</li>
+        <li>Cada cuota con <b>fecha concreta</b> (día/mes).</li>
         <li>La suma de sus cuotas debe <b>cubrir el total</b> (${fmt(total)}).</li>
       </ul>
-    </div>`;
+    </div>
+    <div class="espera">⏳ <b>Importante:</b> enviar este formulario <b>no</b> significa que el acuerdo ya esté aprobado. CORPOSEPI® debe <b>revisarlo y aceptarlo</b>. Usted recibirá un mensaje de WhatsApp con la <b>aceptación</b>, una <b>contrapropuesta</b> o un <b>rechazo</b>. El acuerdo queda <b>en firme solo cuando reciba esa confirmación</b>.</div>`;
 
   // Contrapropuesta pendiente de confirmar
   if(P.estado==="contrapropuesta" && P.contrapropuesta){
@@ -133,7 +138,7 @@ function render(){
   // Editor de propuesta
   if(!rows.length){
     const prev=P.propuesta?.cuotas;
-    rows = (prev&&prev.length) ? prev.map(c=>({fecha:c.fecha,monto:c.monto})) : [{fecha:hoyISO(),monto:""}];
+    rows = (prev&&prev.length) ? prev.map(c=>({fecha:c.fecha,monto:c.monto})) : [{fecha:hoyISO(), monto:(pm>0?String(pm):"")}];
   }
   g("app").innerHTML=cabecera+`
     <div style="margin-top:16px">
@@ -149,17 +154,26 @@ function render(){
   renderRows();
 }
 
+function abonoMaxISO(){
+  const d=new Date(); d.setDate(d.getDate()+5);
+  const iso=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  const fl=P.fechaLimite||""; return (fl&&iso>fl)?fl:iso;
+}
 function renderRows(){
-  const fl=P.fechaLimite||"", min=hoyISO();
-  g("rows").innerHTML=rows.map((c,i)=>`
+  const fl=P.fechaLimite||"", min=hoyISO(), abonoMax=abonoMaxISO(), mesNom=(P.mesActual||"este mes").split(" ")[0];
+  g("rows").innerHTML=rows.map((c,i)=>{
+    const esAbono=i===0, maxF=esAbono?abonoMax:fl;
+    return `
     <div class="cuota">
-      <div class="cnum">Cuota ${i+1}${i===0?" · abono inicial":""}</div>
+      <div class="cnum">Cuota ${i+1}${esAbono?" · abono inicial (pensión de "+mesNom+")":""}</div>
       <div class="crow">
-        <div><label>Fecha de pago</label><input type="date" value="${c.fecha||""}" min="${min}" max="${fl}" onchange="setR(${i},'fecha',this.value)"></div>
+        <div><label>Fecha de pago</label><input type="date" value="${c.fecha||""}" min="${min}" max="${maxF}" onchange="setR(${i},'fecha',this.value)"></div>
         <div><label>Monto</label><input type="number" inputmode="numeric" value="${c.monto||""}" placeholder="$0" oninput="setR(${i},'monto',this.value)"></div>
         ${rows.length>1?`<button class="b-x" onclick="delR(${i})" title="Quitar">🗑</button>`:'<span></span>'}
       </div>
-    </div>`).join("");
+      ${esAbono?`<div class="hint">📅 Máximo 5 días desde hoy · a más tardar el ${fFecha(abonoMax)}</div>`:""}
+    </div>`;
+  }).join("");
   saldo();
 }
 function saldo(){
@@ -175,9 +189,15 @@ function addRow(){ const fl=P.fechaLimite||""; rows.push({fecha:fl,monto:""}); r
 function delR(i){ rows.splice(i,1); if(!rows.length)rows.push({fecha:hoyISO(),monto:""}); renderRows(); }
 
 function validar(){
-  const fl=P.fechaLimite||"", min=hoyISO();
+  const fl=P.fechaLimite||"", min=hoyISO(), abonoMax=abonoMaxISO(), pm=P.pensionMes||0, mesNom=(P.mesActual||"este mes").split(" ")[0];
   const cu=rows.filter(c=>(parseInt(c.monto)||0)>0&&c.fecha);
   if(!cu.length) return {ok:false,m:"Agregue al menos una cuota con fecha y monto."};
+  // Primer abono = pensión del mes en curso, pagadero dentro de 5 días
+  if(pm>0){
+    const c0=rows[0]||{};
+    if((parseInt(c0.monto)||0) < pm) return {ok:false,m:`El primer abono debe ser al menos la pensión de ${mesNom} (${fmt(pm)}).`};
+    if(!c0.fecha || c0.fecha<min || c0.fecha>abonoMax) return {ok:false,m:`El primer abono (pensión de ${mesNom}) debe pagarse máximo el ${fFecha(abonoMax)} — 5 días desde hoy.`};
+  }
   for(const c of cu){
     if(c.fecha<min) return {ok:false,m:"Las fechas deben ser de hoy en adelante."};
     if(fl&&c.fecha>fl) return {ok:false,m:`Todas las cuotas deben pagarse a más tardar el ${fFecha(fl)}.`};
@@ -194,8 +214,9 @@ function enviar(){
     propuesta:{cuotas:v.cuotas, total:v.cuotas.reduce((s,c)=>s+c.monto,0), obs:(g("obs")?.value||""), fecha:hoyISO()}
   }).then(()=>{
     g("app").innerHTML=`<div class="ok-box"><div class="ei">📨</div><h2>¡Propuesta enviada!</h2>
-      <p class="aviso">Gracias, familia <b>${P.nombre||""}</b>. CORPOSEPI® revisará su propuesta y le confirmará por WhatsApp si queda aceptada o le sugiere ajustes.</p>
-      <p class="aviso" style="margin-top:8px">Puede cerrar esta página. 🙏</p></div>`;
+      <p class="aviso">Gracias, familia <b>${P.nombre||""}</b>. Su propuesta quedó <b>registrada</b>, pero <b>aún no está aprobada</b>.</p>
+      <div class="espera" style="text-align:left;margin-top:12px">⏳ CORPOSEPI® la revisará y usted recibirá un mensaje de WhatsApp con la <b>aceptación</b>, una <b>contrapropuesta</b> o un <b>rechazo</b>. El acuerdo queda <b>en firme solo cuando reciba esa confirmación</b>.</div>
+      <p class="aviso" style="margin-top:10px">Puede cerrar esta página. 🙏</p></div>`;
   }).catch(e=>{ alert("❌ No se pudo enviar: "+e.message); g("enviar").disabled=false; g("enviar").textContent="📲 Enviar mi propuesta"; });
 }
 function aceptarContra(){

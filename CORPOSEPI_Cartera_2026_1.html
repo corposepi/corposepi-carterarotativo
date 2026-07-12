@@ -1713,9 +1713,11 @@ function enviarFormato(cc){
   if(ex && ex.estado==="propuesta" && !confirm("Esta familia ya envió una propuesta. Reenviar el formato la reinicia. ¿Continuar?")) return;
   const now=new Date(), fin=new Date(now.getFullYear(),now.getMonth()+1,0);
   const fechaLimite=fin.getFullYear()+"-"+String(fin.getMonth()+1).padStart(2,"0")+"-"+String(fin.getDate()).padStart(2,"0");
+  const idxAct=idxMesActual();
+  const pensionMes=Math.max(0,(f.esperadoPorMes?.[idxAct]||0)-(f.pagosMes?.[idxAct]||0)); // pensión del mes en curso pendiente (1er abono)
   const prop={estado:"enviado", nombre:(f.nombres+" "+(f.apellidos||"")).trim(), tel:f.celular||"",
     estudiantes:(f.estudiantes||[]).map(e=>e.nombre), total:f.deuda||0, desglose:desgloseMoraArr(f),
-    mesActual:mesLabel(mesKeyHoy()), fechaLimite, fechaEnvio:hoy()};
+    pensionMes, mesActual:mesLabel(mesKeyHoy()), fechaLimite, fechaEnvio:hoy()};
   fbdb.ref("propuestas_acuerdo/"+cc).set(prop)
     .then(()=>{ toast("☁️ Formato enviado"); abrirFormatoWA(cc,"enviado"); })
     .catch(e=>toast("❌ "+e.message));
