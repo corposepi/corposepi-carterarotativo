@@ -2074,8 +2074,10 @@ function deudaNetoRecibido(d){ return (d.capital||0)-deudaIntAnticipado(d); }
 // Cronograma mensual de interés (tipo "mensual"): una cuota por mes desde la fecha, al día de pago. Acumula si no se paga (simple, sin interés sobre interés).
 function deudaCuotas(d){
   if(d.tipo==="anticipado" || !d.fecha) return [];
-  const out=[]; const start=new Date(d.fecha+"T00:00:00"); const dia=d.diaPago||start.getDate()||15;
-  const now=new Date(); const y0=start.getFullYear(); let idx=start.getMonth()+1; // primer vencimiento = mes siguiente
+  const out=[]; const start=new Date(d.fecha+"T00:00:00"); const dia=d.diaPago||start.getDate()||15; const now=new Date();
+  // 1ª cuota: el interés que se saca POR ADELANTADO al momento de prestar
+  if(start<=now){ const mk0=d.fecha.slice(0,7); out.push({mesKey:mk0, fecha:d.fecha, interes:deudaIntMes(d), pagado:!!(d.intPagados&&d.intPagados[mk0]), adelantado:true}); }
+  const y0=start.getFullYear(); let idx=start.getMonth()+1; // siguientes: cada mes en el día de pago
   for(let k=0;k<400;k++){
     const due=new Date(y0, idx, dia);         // el interés vence (y se acumula) en su día de pago
     if(due>now) break;                        // aún no llega ese día → todavía no cuenta
@@ -2147,7 +2149,7 @@ function rInversiones(){
           <span style="flex:1;text-align:center;background:#FDECEC;border-radius:6px;padding:6px;min-width:80px">Interés acumulado <strong style="color:var(--ro)">${fmt(acumP)}</strong></span>
           <span style="flex:1;text-align:center;background:#EBF3FF;border-radius:6px;padding:6px;min-width:80px">Interés pagado <strong style="color:var(--azv)">${fmt(pagT)}</strong></span>
         </div>
-        ${cuotas.length?`<table style="margin-top:8px"><thead><tr><th>Mes (día ${d.diaPago||"15"})</th><th>Interés</th><th>Estado</th></tr></thead><tbody>`+cuotas.map(c=>`<tr><td style="font-size:11px">${fFechaR(c.fecha)}</td><td style="font-family:'Syne',sans-serif;font-weight:700">${fmt(c.interes)}</td><td><button class="btn ${c.pagado?'b-o':'b-v'} b-sm" onclick="togglePagoMes('${id}','${c.mesKey}',${!c.pagado})">${c.pagado?'✓ Pagó':'⏳ Pendiente'}</button></td></tr>`).join("")+`</tbody></table>`:'<div style="font-size:11px;color:var(--ts);margin-top:6px">Aún no hay meses de interés.</div>'}
+        ${cuotas.length?`<table style="margin-top:8px"><thead><tr><th>Mes (día ${d.diaPago||"15"})</th><th>Interés</th><th>Estado</th></tr></thead><tbody>`+cuotas.map(c=>`<tr><td style="font-size:11px">${fFechaR(c.fecha)}${c.adelantado?' <span style="font-size:9px;color:#5B21B6;font-weight:700">(al prestar)</span>':''}</td><td style="font-family:'Syne',sans-serif;font-weight:700">${fmt(c.interes)}</td><td><button class="btn ${c.pagado?'b-o':'b-v'} b-sm" onclick="togglePagoMes('${id}','${c.mesKey}',${!c.pagado})">${c.pagado?'✓ Pagó':'⏳ Pendiente'}</button></td></tr>`).join("")+`</tbody></table>`:'<div style="font-size:11px;color:var(--ts);margin-top:6px">Aún no hay meses de interés.</div>'}
         <div style="font-size:10px;color:var(--ts);margin-top:5px">Si un mes no se paga, su interés se acumula (simple, sin interés sobre interés).</div>
       </div>`;}).join("");
 }
