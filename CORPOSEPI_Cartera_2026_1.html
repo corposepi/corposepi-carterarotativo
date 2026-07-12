@@ -255,6 +255,33 @@ tr:hover td{background:#f7faff}
   .kpi-v{font-size:20px}
   table{font-size:12px}
 }
+/* ── DOCUMENTO (factura / recibo) ── */
+.doc{background:#fff;color:#1E293B;font-size:13px;max-width:640px;margin:0 auto}
+.doc-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;border-bottom:3px solid var(--az);padding-bottom:12px;margin-bottom:14px}
+.doc-hd img{width:74px;height:74px;object-fit:contain}
+.doc-em{font-size:11px;color:#475569;line-height:1.5}
+.doc-em b{color:var(--az);font-size:14px}
+.doc-tt{text-align:right}
+.doc-tt .t{font-family:"Fraunces",serif;font-weight:800;font-size:16px;color:var(--az)}
+.doc-tt .n{font-size:20px;font-weight:800;color:#0F172A;margin-top:2px}
+.doc-tt .d{font-size:11px;color:#64748B;margin-top:4px}
+.doc-adq{background:var(--gf);border-radius:9px;padding:11px 13px;font-size:12px;margin-bottom:14px}
+.doc-adq .lb{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#94A3B8;font-weight:700}
+.doc table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:12.5px}
+.doc table th{background:var(--az);color:#fff;text-align:left;padding:8px 10px;font-size:11px}
+.doc table td{padding:8px 10px;border-bottom:1px solid var(--gb)}
+.doc-tot{margin-left:auto;width:240px;font-size:13px}
+.doc-tot .r{display:flex;justify-content:space-between;padding:4px 0}
+.doc-tot .g{border-top:2px solid var(--az);margin-top:4px;padding-top:8px;font-weight:800;font-size:16px;color:var(--az)}
+.doc-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-weight:800;font-size:12px}
+.doc-note{font-size:10.5px;color:#94A3B8;margin-top:16px;border-top:1px dashed var(--gb);padding-top:10px;line-height:1.6}
+@media print{
+  body>*{visibility:hidden}
+  #ov-doc,#ov-doc *{visibility:visible}
+  #ov-doc{position:absolute;inset:0;background:#fff;display:block !important;padding:0}
+  #ov-doc .modal{box-shadow:none;max-width:100%;border-radius:0}
+  #ov-doc .mo-h,#ov-doc .mo-f,#ov-doc .mo-x{display:none !important}
+}
 </style>
 </head>
 <body>
@@ -289,6 +316,7 @@ tr:hover td{background:#f7faff}
   <button class="nb" onclick="ir('mora',this)">⚠️ Pendientes de Pago <span class="nbg" id="nb-m">0</span></button>
   <button class="nb" onclick="ir('acuerdos',this)">🤝 Acuerdos de Pago <span class="nbg" id="nb-ac">0</span></button>
   <button class="nb" onclick="ir('matricula',this)">🎓 Matrículas</button>
+  <button class="nb" onclick="ir('factura',this)">🧾 Facturación</button>
   <div class="sb-sec">Gestión</div>
   <button class="nb" onclick="ir('msg',this)">💬 Mensajes WA</button>
   <button class="nb" onclick="ir('flujo',this)">📈 Flujo de Caja</button>
@@ -380,6 +408,36 @@ tr:hover td{background:#f7faff}
       <div class="card"><div class="card-h"><h3>⏳ Formatos enviados (esperando respuesta)</h3></div><div id="ac-espera"></div></div>
       <div class="card"><div class="card-h"><h3>✅ Acuerdos aceptados</h3></div><div id="ac-listos"></div></div>
       <div class="card"><div class="card-h"><h3>📤 Enviar formato de acuerdo</h3></div><div id="ac-enviar"></div></div>
+    </div>
+
+    <!-- FACTURACIÓN -->
+    <div class="pg" id="pg-factura">
+      <div class="alert-b" style="background:linear-gradient(135deg,#EAF1FB,#F3F7FC);border-color:var(--azv)">
+        <span style="font-size:22px">🧾</span>
+        <p style="color:var(--az)"><strong>Facturación estilo Siigo</strong> — Genera las facturas de pensión y matrícula mes a mes; las pagadas traen su <b>recibo de caja</b> que cruza la factura, y las pendientes quedan como <b>borrador proyectado</b> listas para enviar. Servicio educativo <b>sin IVA</b>.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn b-p b-sm" onclick="abrirFacCfg()">⚙️ Datos y numeración</button>
+          <button class="btn b-v b-sm" onclick="generarFacturas()">🧾 Generar / actualizar todo</button>
+          <button class="btn b-o b-sm" onclick="abrirFacOtro()">➕ Otro concepto</button>
+        </div>
+      </div>
+      <div class="kpis" id="fac-kpis"></div>
+      <div class="card">
+        <div class="card-h" style="flex-wrap:wrap;gap:8px">
+          <h3>🧾 Facturas</h3>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <select id="fac-flt-fam" onchange="rFacturacion()" style="padding:7px;border:1px solid var(--gb);border-radius:8px;font-size:12px"></select>
+            <select id="fac-flt-est" onchange="rFacturacion()" style="padding:7px;border:1px solid var(--gb);border-radius:8px;font-size:12px">
+              <option value="">Todos los estados</option>
+              <option value="pagada">Pagadas</option>
+              <option value="emitida">Emitidas (pendientes)</option>
+              <option value="borrador">Borrador (proyectadas)</option>
+              <option value="anulada">Anuladas</option>
+            </select>
+          </div>
+        </div>
+        <div id="fac-tabla"></div>
+      </div>
     </div>
 
     <!-- MATRÍCULAS -->
@@ -695,6 +753,65 @@ tr:hover td{background:#f7faff}
 </div>
 </div>
 
+<!-- MODAL: VER DOCUMENTO (factura / recibo) -->
+<div class="ov" id="ov-doc">
+<div class="modal" style="max-width:680px">
+  <div class="mo-h"><h2 id="doc-tit">🧾 Documento</h2><button class="mo-x" onclick="c('ov-doc')">✕</button></div>
+  <div class="mo-b"><div id="doc-body"></div></div>
+  <div class="mo-f">
+    <button class="btn b-o" onclick="c('ov-doc')">Cerrar</button>
+    <button class="btn b-w" id="doc-wa" onclick="docEnviarWA()">💬 Enviar por WhatsApp</button>
+    <button class="btn b-p" onclick="window.print()">🖨️ Imprimir / PDF</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL: CONFIG FACTURACIÓN -->
+<div class="ov" id="ov-faccfg">
+<div class="modal">
+  <div class="mo-h"><h2>⚙️ Datos de facturación</h2><button class="mo-x" onclick="c('ov-faccfg')">✕</button></div>
+  <div class="mo-b">
+    <div style="font-size:11px;color:var(--ts);margin-bottom:10px">Estos datos salen en el encabezado de todas las facturas y recibos.</div>
+    <div class="ff"><label>Razón social (emisor)</label><input id="fc-nom" placeholder="CORPOSEPI®"></div>
+    <div class="fg c2">
+      <div class="ff"><label>NIT</label><input id="fc-nit" placeholder="900.000.000-0"></div>
+      <div class="ff"><label>Teléfono</label><input id="fc-tel" placeholder="320 833 1293"></div>
+    </div>
+    <div class="ff"><label>Dirección / ciudad</label><input id="fc-dir" placeholder="Madrid, Cundinamarca"></div>
+    <div class="ff"><label>Régimen / nota fiscal</label><input id="fc-reg" placeholder="No responsable de IVA · Servicio educativo excluido (Art. 476 E.T.)"></div>
+    <hr style="border:none;border-top:1px solid var(--gb);margin:14px 0">
+    <div class="fg c2">
+      <div class="ff"><label>Prefijo de numeración</label><input id="fc-pfx" placeholder="CORPO"></div>
+      <div class="ff"><label>Próximo consecutivo</label><input id="fc-seq" type="number" placeholder="1"></div>
+    </div>
+    <div class="ff"><label>Resolución DIAN (opcional)</label><input id="fc-res" placeholder="Ej: Autorización interna 2026 — sin resolución"></div>
+  </div>
+  <div class="mo-f">
+    <button class="btn b-o" onclick="c('ov-faccfg')">Cancelar</button>
+    <button class="btn b-v" onclick="guardarFacCfg()">✓ Guardar</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL: OTRO CONCEPTO -->
+<div class="ov" id="ov-facotro">
+<div class="modal">
+  <div class="mo-h"><h2>➕ Factura de otro concepto</h2><button class="mo-x" onclick="c('ov-facotro')">✕</button></div>
+  <div class="mo-b">
+    <div class="ff"><label>Familia</label><select id="fo-cc"></select></div>
+    <div class="ff"><label>Concepto</label><input id="fo-con" placeholder="Ej: Certificado de notas, Salida pedagógica, Convenio…"></div>
+    <div class="fg c2">
+      <div class="ff"><label>Valor</label><input id="fo-val" type="number" placeholder="$0"></div>
+      <div class="ff"><label>¿Ya está pagada?</label><select id="fo-pag"><option value="0">No — queda pendiente</option><option value="1">Sí — crear recibo de caja</option></select></div>
+    </div>
+  </div>
+  <div class="mo-f">
+    <button class="btn b-o" onclick="c('ov-facotro')">Cancelar</button>
+    <button class="btn b-v" onclick="guardarFacOtro()">✓ Crear factura</button>
+  </div>
+</div>
+</div>
+
 <div class="toast" id="toast">✓</div>
 
 <script>
@@ -845,6 +962,7 @@ const PAGES={
   mora:{el:"pg-mora",tit:"⚠️ Pendientes de Pago",sub:"Familias con pagos vencidos — acción requerida",exp:false},
   acuerdos:{el:"pg-acuerdos",tit:"🤝 Acuerdos de Pago",sub:"Propuestas de los papás — revisar, aceptar o contra-proponer",exp:false},
   matricula:{el:"pg-matricula",tit:"🎓 Matrículas 2026",sub:"Control de matrículas — pagado y pendiente · sin interés",exp:false},
+  factura:{el:"pg-factura",tit:"🧾 Facturación",sub:"Facturas y recibos de caja · estilo Siigo · sin IVA (servicio educativo excluido, Art. 476 E.T.)",exp:false},
   msg:{el:"pg-msg",tit:"💬 Mensajes WhatsApp",sub:"Recordatorios y notificaciones automáticas",exp:false},
   flujo:{el:"pg-flujo",tit:"📈 Flujo de Caja",sub:"Proyección financiera CORPOSEPI® 2026",exp:false},
 };
@@ -868,6 +986,7 @@ function ir(id,btn){
   if(id==="mora")rMora();
   if(id==="acuerdos")rAcuerdos();
   if(id==="matricula")rMatriculas();
+  if(id==="factura")rFacturacion();
   if(id==="msg"){prevMsg();rHistWA();}
   if(id==="flujo")rFlujo();
 }
@@ -1810,6 +1929,192 @@ function rAcuerdos(){
   }).join("")+'</tbody></table>' : '<div style="padding:14px;color:var(--ts)">Ninguna familia con deuda.</div>';
 }
 
+// ═══════════ FACTURACIÓN (estilo Siigo · interno) ═══════════
+let FACT_CFG={}, FACTURAS={}, RECIBOS={};
+function facKpi(cls,l,v,s){ return `<div class="kpi ${cls}"><div class="kpi-l">${l}</div><div class="kpi-v">${v}</div><div class="kpi-s">${s||""}</div></div>`; }
+
+function rFacturacion(){
+  // filtro de familia (conserva selección)
+  const selF=g("fac-flt-fam");
+  if(selF){ const cur=selF.value; selF.innerHTML='<option value="">Todas las familias</option>'+DB.slice().sort((a,b)=>(a.nombres||"").localeCompare(b.nombres||"")).map(f=>`<option value="${f.cc}">${f.nombres} ${f.apellidos}</option>`).join(""); selF.value=cur; }
+  const fFam=g("fac-flt-fam")?.value||"", fEst=g("fac-flt-est")?.value||"";
+  let arr=Object.entries(FACTURAS).map(([id,x])=>({id,...x}));
+  const activas=arr.filter(x=>x.estado!=="anulada");
+  const facturado=activas.filter(x=>x.estado==="emitida"||x.estado==="pagada").reduce((s,x)=>s+(x.valor||0),0);
+  const recaudado=Object.values(RECIBOS).reduce((s,r)=>{ const fa=FACTURAS[r.facturaId]; if(fa&&fa.estado==="anulada")return s; return s+(r.valor||0); },0);
+  const nBorr=activas.filter(x=>x.estado==="borrador").length;
+  g("fac-kpis").innerHTML=[
+    facKpi("az","Facturado (emitido)",fmt(facturado),activas.filter(x=>x.estado==="emitida"||x.estado==="pagada").length+" facturas"),
+    facKpi("ve","Recaudado (recibos)",fmt(recaudado),""),
+    facKpi("ro","Pendiente de cobro",fmt(Math.max(0,facturado-recaudado)),""),
+    facKpi("am","Borradores proyectados",nBorr,"aún sin emitir")
+  ].join("");
+  if(fFam)arr=arr.filter(x=>String(x.cc)===String(fFam));
+  if(fEst)arr=arr.filter(x=>x.estado===fEst);
+  arr.sort((a,b)=>(b.numSeq||0)-(a.numSeq||0)||(a.nombre||"").localeCompare(b.nombre||""));
+  const badge=x=>x.estado==="pagada"?'<span class="bg" style="background:#DCFCE7;color:#15803D">Pagada</span>':x.estado==="emitida"?'<span class="bg" style="background:#FEF3C7;color:#92400E">Emitida</span>':x.estado==="borrador"?'<span class="bg" style="background:#F1F5F9;color:#64748B">Borrador</span>':'<span class="bg" style="background:#FEE2E2;color:#B91C1C">Anulada</span>';
+  const el=g("fac-tabla");
+  if(!arr.length){el.innerHTML='<div class="empty" style="padding:34px"><div class="ei">🧾</div><h3>Sin facturas todavía</h3><p>Usa “🧾 Generar / actualizar todo” para crear las facturas de pensión y matrícula desde los pagos reales.</p></div>';return;}
+  el.innerHTML='<table><thead><tr><th>Núm</th><th>Familia</th><th>Concepto</th><th>Valor</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>'+arr.map(x=>`<tr>
+    <td style="font-weight:700;color:var(--az)">${x.num||"—"}</td>
+    <td style="font-size:12px">${x.nombre||""}</td>
+    <td style="font-size:12px">${x.concepto||""}</td>
+    <td style="font-weight:700">${fmt(x.valor)}</td>
+    <td>${badge(x)}</td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap">
+      <button class="ab a-ed" onclick="verFactura('${x.id}')">👁 Ver</button>
+      ${x.reciboId?`<button class="ab a-pg" onclick="verRecibo('${x.reciboId}')">🧾 Recibo</button>`:""}
+      <button class="ab a-wa" onclick="verFactura('${x.id}');setTimeout(docEnviarWA,60)">💬 WA</button>
+      ${x.estado!=="anulada"?`<button class="ab a-dl" onclick="anularFactura('${x.id}')">🚫</button>`:""}
+    </div></td></tr>`).join("")+'</tbody></table>';
+}
+
+// ── Documentos imprimibles ──
+function docHead(tit,num,femi,fven){
+  const c=FACT_CFG||{};
+  return `<div class="doc-hd">
+    <div style="display:flex;gap:12px;align-items:flex-start">
+      <img src="logo-corposepi.png" alt="CORPOSEPI">
+      <div class="doc-em"><b>${c.nombre||"CORPOSEPI®"}</b><br>${c.nit?("NIT "+c.nit+"<br>"):""}${c.direccion||"Madrid, Cundinamarca"}<br>${c.tel?("Tel: "+c.tel):""}</div>
+    </div>
+    <div class="doc-tt"><div class="t">${tit}</div><div class="n">${num}</div><div class="d">Emisión: ${fFecha(femi)}${fven?`<br>Vence: ${fFecha(fven)}`:""}</div></div>
+  </div>`;
+}
+function docFactura(fa){
+  const c=FACT_CFG||{}, pagada=fa.estado==="pagada";
+  const badge = pagada?'<span class="doc-badge" style="background:#DCFCE7;color:#15803D">✓ PAGADA</span>'
+    : fa.estado==="borrador"?'<span class="doc-badge" style="background:#F1F5F9;color:#64748B">BORRADOR (proyectada)</span>'
+    : fa.estado==="anulada"?'<span class="doc-badge" style="background:#FEE2E2;color:#B91C1C">ANULADA</span>'
+    :'<span class="doc-badge" style="background:#FEF3C7;color:#92400E">PENDIENTE DE PAGO</span>';
+  return `<div class="doc">
+    ${docHead("FACTURA DE VENTA", fa.num||"(borrador · sin numerar)", fa.fechaEmision, fa.fechaVenc)}
+    <div class="doc-adq"><div class="lb">Adquirente</div><b>${fa.nombre||""}</b><br>CC/NIT: ${fa.cc||""}${fa.tel?` · Tel: ${fa.tel}`:""}</div>
+    <table><thead><tr><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">Vlr unitario</th><th style="text-align:right">Total</th></tr></thead>
+    <tbody><tr><td>${fa.concepto||""}</td><td style="text-align:center">1</td><td style="text-align:right">${fmt(fa.valor)}</td><td style="text-align:right">${fmt(fa.valor)}</td></tr></tbody></table>
+    <div class="doc-tot">
+      <div class="r"><span>Subtotal</span><span>${fmt(fa.valor)}</span></div>
+      <div class="r"><span>IVA (0% · excluido)</span><span>$0</span></div>
+      <div class="r g"><span>TOTAL</span><span>${fmt(fa.valor)}</span></div>
+    </div>
+    <div style="margin-top:12px;clear:both">${badge}${pagada&&fa.reciboId?` &nbsp; <a href="#" onclick="verRecibo('${fa.reciboId}');return false" style="color:var(--azv);font-weight:700">Ver recibo de caja →</a>`:""}</div>
+    <div class="doc-note">${c.regimen||"No responsable de IVA · Servicio educativo excluido de IVA (Art. 476 E.T.)."}<br>${c.resolucion?("Numeración: "+c.resolucion+"<br>"):""}Documento interno del sistema de cartera CORPOSEPI®. La factura electrónica con validez DIAN se emite a través del proveedor tecnológico autorizado.</div>
+  </div>`;
+}
+function docRecibo(rc){
+  const fa=rc.facturaId?FACTURAS[rc.facturaId]:null;
+  return `<div class="doc">
+    ${docHead("RECIBO DE CAJA", rc.num||"", rc.fecha, "")}
+    <div class="doc-adq"><div class="lb">Recibí de</div><b>${rc.nombre||""}</b><br>CC/NIT: ${rc.cc||""}</div>
+    <table><thead><tr><th>Concepto</th><th style="text-align:right">Valor</th></tr></thead>
+    <tbody><tr><td>${rc.concepto||""}${fa&&fa.num?` — cruza factura ${fa.num}`:""}</td><td style="text-align:right">${fmt(rc.valor)}</td></tr></tbody></table>
+    <div class="doc-tot"><div class="r g"><span>RECIBIDO</span><span>${fmt(rc.valor)}</span></div></div>
+    <div style="margin-top:12px;clear:both"><span class="doc-badge" style="background:#DCFCE7;color:#15803D">✓ PAGO REGISTRADO</span>${rc.medio&&rc.medio!=="—"?` · ${rc.medio}`:""}</div>
+    <div class="doc-note">Recibo de caja generado por CORPOSEPI®. Cancela/cruza la cuenta por cobrar de la factura relacionada.</div>
+  </div>`;
+}
+let docCtx=null;
+function verFactura(id){ const fa=FACTURAS[id]; if(!fa){toast("Factura no encontrada");return;} docCtx={tipo:"factura",id}; g("doc-tit").textContent="🧾 Factura "+(fa.num||"borrador"); g("doc-body").innerHTML=docFactura({...fa,id}); ab("ov-doc"); }
+function verRecibo(id){ const rc=RECIBOS[id]; if(!rc){toast("Recibo no encontrado");return;} docCtx={tipo:"recibo",id}; g("doc-tit").textContent="🧾 Recibo "+(rc.num||""); g("doc-body").innerHTML=docRecibo(rc); ab("ov-doc"); }
+function docEnviarWA(){
+  if(!docCtx)return;
+  let num,concepto,valor,tel,nombre,estado;
+  if(docCtx.tipo==="factura"){ const fa=FACTURAS[docCtx.id]; if(!fa)return; num=fa.num;concepto=fa.concepto;valor=fa.valor;tel=fa.tel;nombre=fa.nombre;estado=fa.estado; }
+  else { const rc=RECIBOS[docCtx.id]; if(!rc)return; num=rc.num;concepto=rc.concepto;valor=rc.valor;nombre=rc.nombre; const fa=rc.facturaId?FACTURAS[rc.facturaId]:null; tel=fa?.tel; estado="pagada"; }
+  const numTel=((tel||"")+"").replace(/\D/g,""); if(!numTel){toast("⚠ Esta familia no tiene celular");return;}
+  const t=numTel.startsWith("57")?numTel:"57"+numTel;
+  const est = estado==="pagada"?"*PAGADA* ✅":"*PENDIENTE DE PAGO*";
+  const msg = docCtx.tipo==="factura"
+    ? `Cordial saludo, familia *${nombre||""}* 🙏\n\nLe compartimos su *factura ${num||""}* de CORPOSEPI®:\n\n• ${concepto}\n• Valor: *${fmt(valor)}*\n• Estado: ${est}\n\n📞 320 833 1293\n_CORPOSEPI®_`
+    : `Cordial saludo, familia *${nombre||""}* 🙏\n\nAdjuntamos su *recibo de caja ${num||""}* de CORPOSEPI®:\n\n• ${concepto}\n• Valor recibido: *${fmt(valor)}* ✅\n\n¡Gracias por su pago! 📞 320 833 1293\n_CORPOSEPI®_`;
+  window.open(`https://wa.me/${t}?text=${encodeURIComponent(msg)}`,"_blank");
+}
+
+// ── Generar / actualizar facturas desde los pagos reales ──
+function generarFacturas(soloCc){
+  const fams = soloCc ? DB.filter(f=>String(f.cc)===String(soloCc)) : DB;
+  if(!fams.length){toast("No hay familias");return;}
+  const idxAct=idxMesActual(), dia=new Date().getDate(), diaCorte=parseInt(CFG.diaCorte)||5, anio=new Date().getFullYear();
+  const pfx=(FACT_CFG.prefijo||"CORPO");
+  let seq=parseInt(FACT_CFG.consecutivo)||1;
+  const nextNum=()=>{ const o={num:`${pfx}-${String(seq).padStart(4,"0")}`,numSeq:seq}; seq++; return o; };
+  const updates={};
+  fams.forEach(f=>{
+    const cc=f.cc, nombre=(f.nombres+" "+(f.apellidos||"")).trim(), finMes=(f.finMes!=null?f.finMes:9);
+    // PENSIÓN mes a mes
+    for(let m=(f.inicio||0); m<=finMes; m++){
+      const esp=f.esperadoPorMes?.[m]||0; if(esp<=0) continue;
+      const mesKey=`${anio}-${String(m+2).padStart(2,"0")}`, id=`${cc}_p_${mesKey}`, ex=FACTURAS[id]||{};
+      if(ex.estado==="anulada") continue;
+      const vencido=(m<idxAct)||(m===idxAct&&dia>=diaCorte), pagado=(f.pagosMes?.[m]||0)>=esp;
+      let num=ex.num||null, numSeq=ex.numSeq||null, estado;
+      if(!vencido && !pagado){ estado="borrador"; }
+      else { estado=pagado?"pagada":"emitida"; if(!num){ const nn=nextNum(); num=nn.num; numSeq=nn.numSeq; } }
+      const fa={cc,nombre,tipo:"pension",mesKey,concepto:`Pensión ${MESES_L[m+1]} ${anio}`,valor:esp,estado,num,numSeq,tel:f.celular||"",fechaEmision:ex.fechaEmision||hoy(),fechaVenc:`${mesKey}-${String(diaCorte).padStart(2,"0")}`,reciboId:null};
+      if(pagado){ const rid="r_"+id; fa.reciboId=rid; updates[`rotativo_v1/facturacion/recibos/${rid}`]={facturaId:id,num:`RC-${String(numSeq).padStart(4,"0")}`,cc,nombre,valor:esp,concepto:fa.concepto,fecha:(RECIBOS[rid]?.fecha)||hoy(),medio:RECIBOS[rid]?.medio||"—"}; }
+      else if(ex.reciboId){ updates[`rotativo_v1/facturacion/recibos/${ex.reciboId}`]=null; }
+      updates[`rotativo_v1/facturacion/facturas/${id}`]=fa;
+    }
+    // MATRÍCULA
+    const mt=f.matricula||0;
+    if(mt>0){
+      const id=`${cc}_m`, ex=FACTURAS[id]||{};
+      if(ex.estado!=="anulada"){
+        const pagM=f.matriculaPagada||0, pagadaTot=pagM>=mt;
+        let num=ex.num||null, numSeq=ex.numSeq||null; if(!num){ const nn=nextNum(); num=nn.num; numSeq=nn.numSeq; }
+        const fa={cc,nombre,tipo:"matricula",concepto:`Matrícula ${anio}`,valor:mt,estado:pagadaTot?"pagada":"emitida",num,numSeq,tel:f.celular||"",fechaEmision:ex.fechaEmision||hoy(),reciboId:null};
+        if(pagM>0){ const rid="r_"+id; fa.reciboId=rid; updates[`rotativo_v1/facturacion/recibos/${rid}`]={facturaId:id,num:`RC-${String(numSeq).padStart(4,"0")}`,cc,nombre,valor:pagM,concepto:(pagadaTot?`Matrícula ${anio}`:`Abono matrícula ${anio}`),fecha:(RECIBOS[rid]?.fecha)||hoy(),medio:RECIBOS[rid]?.medio||"—"}; }
+        else if(ex.reciboId){ updates[`rotativo_v1/facturacion/recibos/${ex.reciboId}`]=null; }
+        updates[`rotativo_v1/facturacion/facturas/${id}`]=fa;
+      }
+    }
+  });
+  updates['rotativo_v1/facturacion/config/consecutivo']=seq;
+  fbdb.ref().update(updates).then(()=>toast("🧾 Facturas generadas / actualizadas")).catch(e=>toast("❌ "+e.message));
+}
+
+// ── Configuración de facturación ──
+function abrirFacCfg(){
+  const c=FACT_CFG||{};
+  g("fc-nom").value=c.nombre||"CORPOSEPI®"; g("fc-nit").value=c.nit||""; g("fc-tel").value=c.tel||"320 833 1293";
+  g("fc-dir").value=c.direccion||"Madrid, Cundinamarca"; g("fc-reg").value=c.regimen||"No responsable de IVA · Servicio educativo excluido (Art. 476 E.T.)";
+  g("fc-pfx").value=c.prefijo||"CORPO"; g("fc-seq").value=c.consecutivo||1; g("fc-res").value=c.resolucion||"";
+  ab("ov-faccfg");
+}
+function guardarFacCfg(){
+  const cfg={nombre:g("fc-nom").value||"CORPOSEPI®",nit:g("fc-nit").value||"",tel:g("fc-tel").value||"",direccion:g("fc-dir").value||"",regimen:g("fc-reg").value||"",prefijo:(g("fc-pfx").value||"CORPO").trim(),consecutivo:parseInt(g("fc-seq").value)||1,resolucion:g("fc-res").value||""};
+  fbdb.ref('rotativo_v1/facturacion/config').update(cfg).then(()=>{toast("✅ Datos de facturación guardados");c("ov-faccfg");}).catch(e=>toast("❌ "+e.message));
+}
+
+// ── Factura de otro concepto (manual) ──
+function abrirFacOtro(){
+  g("fo-cc").innerHTML=DB.slice().sort((a,b)=>(a.nombres||"").localeCompare(b.nombres||"")).map(f=>`<option value="${f.cc}">${f.nombres} ${f.apellidos}</option>`).join("");
+  g("fo-con").value=""; g("fo-val").value=""; g("fo-pag").value="0";
+  ab("ov-facotro");
+}
+function guardarFacOtro(){
+  const cc=g("fo-cc").value, f=DB.find(x=>String(x.cc)===String(cc));
+  const con=(g("fo-con").value||"").trim(), val=parseInt(g("fo-val").value)||0, pag=g("fo-pag").value==="1";
+  if(!f){toast("⚠ Elige una familia");return;}
+  if(!con||val<=0){toast("⚠ Escribe concepto y valor");return;}
+  let seq=parseInt(FACT_CFG.consecutivo)||1; const pfx=FACT_CFG.prefijo||"CORPO";
+  const num=`${pfx}-${String(seq).padStart(4,"0")}`, numSeq=seq; seq++;
+  const id="o_"+Date.now(), nombre=(f.nombres+" "+(f.apellidos||"")).trim();
+  const fa={cc,nombre,tipo:"otro",concepto:con,valor:val,estado:pag?"pagada":"emitida",num,numSeq,tel:f.celular||"",fechaEmision:hoy(),reciboId:null};
+  const updates={};
+  if(pag){ const rid="r_"+id; fa.reciboId=rid; updates[`rotativo_v1/facturacion/recibos/${rid}`]={facturaId:id,num:`RC-${String(numSeq).padStart(4,"0")}`,cc,nombre,valor:val,concepto:con,fecha:hoy(),medio:"—"}; }
+  updates[`rotativo_v1/facturacion/facturas/${id}`]=fa;
+  updates['rotativo_v1/facturacion/config/consecutivo']=seq;
+  fbdb.ref().update(updates).then(()=>{toast("🧾 Factura creada");c("ov-facotro");}).catch(e=>toast("❌ "+e.message));
+}
+function anularFactura(id){
+  const fa=FACTURAS[id]; if(!fa)return;
+  if(!confirm(`¿Anular la factura ${fa.num||"(borrador)"} de ${fa.nombre}?`))return;
+  const updates={};
+  updates[`rotativo_v1/facturacion/facturas/${id}/estado`]="anulada";
+  if(fa.reciboId){ updates[`rotativo_v1/facturacion/recibos/${fa.reciboId}`]=null; updates[`rotativo_v1/facturacion/facturas/${id}/reciboId`]=null; }
+  fbdb.ref().update(updates).then(()=>toast("🚫 Factura anulada")).catch(e=>toast("❌ "+e.message));
+}
+
 // ═══════════ ABRIR MÓDULO ROTATIVO ═══════════
 function abrirRotativo(){
   window.open('CORPOSEPI_Flujo_Rotativo.html','_blank');
@@ -1840,6 +2145,9 @@ fbdb.ref('familias_v3').on('value',snap=>{
 fbdb.ref('pagos_v3').on('value',snap=>{ PAGOS=snap.val()||{}; refrescarVista(); });
 fbdb.ref('rotativo_v1/acuerdos').on('value',snap=>{ ACUERDOS=snap.val()||{}; refrescarVista(); });
 fbdb.ref('propuestas_acuerdo').on('value',snap=>{ PROPUESTAS=snap.val()||{}; if(document.querySelector('.pg.on')?.id==='pg-acuerdos')rAcuerdos(); actualizarBadges(); });
+fbdb.ref('rotativo_v1/facturacion/config').on('value',s=>{ FACT_CFG=s.val()||{}; });
+fbdb.ref('rotativo_v1/facturacion/facturas').on('value',s=>{ FACTURAS=s.val()||{}; if(document.querySelector('.pg.on')?.id==='pg-factura')rFacturacion(); });
+fbdb.ref('rotativo_v1/facturacion/recibos').on('value',s=>{ RECIBOS=s.val()||{}; if(document.querySelector('.pg.on')?.id==='pg-factura')rFacturacion(); });
 fbdb.ref('rotativo_v1/obligaciones').on('value',snap=>{ OBLIGACIONES=snap.val()||{}; });
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}</script>
