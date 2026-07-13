@@ -586,7 +586,7 @@ tr:hover td{background:#f8fafc}
     <div class="pg" id="pg-gastos">
       <div class="hero-banner" style="background:linear-gradient(135deg,#7C2D12,#B45309)">
         <div class="hb-icon">💸</div>
-        <div class="hb-txt"><h2>Libro de Gastos</h2><p>Registra los gastos reales de la corporación: arriendo, servicios, proveedores, honorarios. Alimenta el Estado de Resultados y el Balance. La <b>nómina</b> se maneja en su propia pestaña.</p></div>
+        <div class="hb-txt"><h2>Libro de Gastos</h2><p>🔗 Los gastos que ya tienes en el <b>Presupuesto</b> se van solos a los Estados Financieros (no los repitas aquí). Usa esta pestaña solo para <b>gastos adicionales</b> que no estén en el Presupuesto. La <b>nómina</b> va en su propia pestaña.</p></div>
       </div>
       <div class="kpis" id="gastos-kpis"></div>
       <div class="card">
@@ -3105,6 +3105,20 @@ function guardarGasto(){ const desc=g("gc-desc").value.trim(), valor=parseInt(g(
   fbdb.ref("rotativo_v1/contabilidad/gastos/"+id).update(campos).then(()=>{c("ov-gastoc");toast("✅ Gasto guardado");gastoEditId=null;}).catch(e=>toast("⚠ "+e.message)); }
 function borrarGasto(id){ if(!GASTOS_FB[id])return; fbdb.ref("rotativo_v1/contabilidad/gastos/"+id).remove().then(()=>toast("🗑 Gasto eliminado")).catch(e=>toast("⚠ "+e.message)); }
 
+// ── CONEXIÓN: gastos del Presupuesto (año hasta hoy), separando salarios de operativos ──
+function presGastosYTD(){
+  const upto=new Date().getMonth(); // índice calendario del mes actual (0=Ene)
+  let salarios=0, otros=0;
+  Object.values((typeof PRESUP_FB!=="undefined"?PRESUP_FB.gastos:null)||{}).forEach(x=>{
+    const m=parseInt(x.monto)||0, cal=Array(12).fill(0);
+    if(x.tipo==="unico") cal[parseInt(x.desde)||0]+=m;
+    else if(x.tipo==="anual"){ const tot=(parseInt(x.cantidad)||1)*m; for(let i=1;i<=10;i++)cal[i]+=tot/10; }
+    else { const d=parseInt(x.desde)||0, h=(x.hasta!=null?parseInt(x.hasta):11); for(let i=d;i<=h;i++)cal[i]+=m; }
+    const ytd=cal.slice(0,upto+1).reduce((s,v)=>s+v,0);
+    if((x.categoria||"")==="Salarios") salarios+=ytd; else otros+=ytd;
+  });
+  return {salarios:Math.round(salarios), otros:Math.round(otros)};
+}
 // ── ESTADOS FINANCIEROS ──
 function estData(){
   const cfg=contaCfg(), idxAct=idxMesActual(), dia=new Date().getDate(), diaCorte=parseInt(CFG.diaCorte)||5, mm=mesesTranscurridos();
@@ -3115,8 +3129,11 @@ function estData(){
     matriculaCausada+=(f.matricula||0); matriculaRecaudada+=(f.matriculaPagada||0);
   });
   const ingresoCausado=pensionCausada+matriculaCausada, ingresoRecaudado=pensionRecaudada+matriculaRecaudada;
-  const gt=gastosTotales(), nom=nomTotales();
-  const gastoNomina=nom.costoMes*mm, gastoOperativo=gt.causado, gastoTotal=gastoNomina+gastoOperativo;
+  const gt=gastosTotales(), nom=nomTotales(), presG=presGastosYTD();
+  const nomDetallada=nom.costoMes>0;   // si hay personal en Nómina, manda esa (con prestaciones); si no, usa los salarios del Presupuesto
+  const gastoNomina = nomDetallada ? nom.costoMes*mm : presG.salarios;
+  const gastoOperativo = presG.otros + gt.causado;   // Presupuesto (sin salarios) + gastos de Contabilidad — no se duplica
+  const gastoTotal=gastoNomina+gastoOperativo;
   const excedente=ingresoCausado-gastoTotal;
   const cxc=(pensionCausada-pensionRecaudada)+(matriculaCausada-matriculaRecaudada);
   const lt=(typeof getLoanTotals==="function")?getLoanTotals():null;
@@ -3124,7 +3141,8 @@ function estData(){
   const financiacion=Object.values(DEUDAS_FB||{}).reduce((s,d)=>s+deudaNetoRecibido(d),0)+Object.values(INVERSIONES_FB||{}).reduce((s,iv)=>s+(iv.capital||0),0);
   const abonosDeuda=Object.values(DEUDAS_FB||{}).reduce((s,d)=>s+deudaAbonos(d),0);
   const efectivoInicial=parseInt(cfg.cajaInicial)||0;
-  const flujoOper=ingresoRecaudado-gastoNomina-gt.pagado;
+  const salidasOper=gastoNomina+presG.otros+gt.pagado;
+  const flujoOper=ingresoRecaudado-salidasOper;
   const flujoFin=financiacion-abonosDeuda;
   const flujoInv=-prestamosPorCobrar;
   const variacion=flujoOper+flujoFin+flujoInv;
@@ -3134,16 +3152,16 @@ function estData(){
   const interesPorPagar=Object.values(DEUDAS_FB||{}).reduce((s,d)=>s+deudaIntAcumulado(d),0);
   const inversionistasPorPagar=Object.values(INVERSIONES_FB||{}).reduce((s,iv)=>s+invValor(iv),0);
   const gastosPorPagar=gt.porPagar;
-  const prestacionesPorPagar=nom.prestacionesMes*mm;
+  const prestacionesPorPagar=nomDetallada?nom.prestacionesMes*mm:0;
   const pasivoTotal=prestamosPorPagar+interesPorPagar+inversionistasPorPagar+gastosPorPagar+prestacionesPorPagar;
   const patrimonioTotal=activoTotal-pasivoTotal;
   const fondoSocial=parseInt(cfg.fondoSocial)||0;
   const resultadosAcum=patrimonioTotal-fondoSocial-excedente; // plug que cuadra el balance
-  return {mm,pensionCausada,matriculaCausada,ingresoCausado,ingresoRecaudado,gastoNomina,gastoOperativo,gastoTotal,excedente,
+  return {mm,pensionCausada,matriculaCausada,ingresoCausado,ingresoRecaudado,gastoNomina,gastoOperativo,gastoTotal,excedente,nomDetallada,
     efectivoInicial,efectivo,cxc,prestamosPorCobrar,activoTotal,
     prestamosPorPagar,interesPorPagar,inversionistasPorPagar,gastosPorPagar,prestacionesPorPagar,pasivoTotal,
     patrimonioTotal,fondoSocial,resultadosAcum,flujoOper,flujoFin,flujoInv,variacion,
-    gastoOperativoPagado:gt.pagado,financiacion,abonosDeuda};
+    gastoOperativoPagado:presG.otros+gt.pagado,financiacion,abonosDeuda};
 }
 function eRow(lbl,val,cls){ return `<tr><td class="${cls||''}">${lbl}</td><td class="v ${cls||''}">${typeof val==="number"?fmt(val):val}</td></tr>`; }
 function rEstados(){
@@ -3156,12 +3174,12 @@ function rEstados(){
       ${eRow("Matrículas (causadas)",d.matriculaCausada,"sub")}
       ${eRow("Total ingresos",d.ingresoCausado,"tot")}
       ${eRow("GASTOS","","sec")}
-      ${eRow("Gastos de personal (nómina + honorarios)",d.gastoNomina,"sub")}
-      ${eRow("Gastos operativos (arriendo, servicios, etc.)",d.gastoOperativo,"sub")}
+      ${eRow("Gastos de personal ("+(d.nomDetallada?"Nómina, con prestaciones":"salarios del Presupuesto")+")",d.gastoNomina,"sub")}
+      ${eRow("Gastos operativos (Presupuesto + Gastos, sin salarios)",d.gastoOperativo,"sub")}
       ${eRow("Total gastos",d.gastoTotal,"tot")}
       ${eRow((exc>=0?"EXCEDENTE":"DÉFICIT")+" DEL EJERCICIO",exc,"grand "+(exc>=0?"pos":"neg"))}
     </table>
-    <div class="est-note">Ingresos causados (devengados) del período. En una ESAL el resultado se denomina excedente/déficit.</div></div>`;
+    <div class="est-note">🔗 <b>Datos conectados:</b> ingresos desde Cartera; gastos operativos desde el <b>Presupuesto</b> + módulo Gastos; personal desde <b>Nómina</b> (o, si aún no cargas nómina, desde los "Salarios" del Presupuesto). No se digita ni se cuenta dos veces. Resultado en ESAL = excedente/déficit.</div></div>`;
   // 2) BALANCE / SITUACIÓN FINANCIERA
   const bg=`<div class="est">${emisorHd("Estado de Situación Financiera (Balance General) · al "+fFechaR(hoy()))}
     <table>
@@ -3270,6 +3288,7 @@ fbdb.ref('rotativo_v1/deudas').on('value', snap => { DEUDAS_FB = snap.val() || {
 fbdb.ref('rotativo_v1/presupuesto').on('value', snap => {
   PRESUP_FB = snap.val() || {};
   if (g("pg-presupuesto")?.classList.contains("on")) rPresupuesto();
+  if (g("pg-estados")?.classList.contains("on")) rEstados();
 });
 // Contabilidad (config, empleados, gastos)
 fbdb.ref('rotativo_v1/contabilidad/config').on('value', snap => { CONTA_CFG = snap.val() || {}; if (g("pg-estados")?.classList.contains("on")) rEstados(); if (g("pg-nomina")?.classList.contains("on")) rNomina(); });
