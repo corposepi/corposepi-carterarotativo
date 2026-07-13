@@ -134,9 +134,9 @@ function render(){
     <div class="cond">Para que su propuesta sea válida, tenga en cuenta:
       <ul>
         <li>El <b>primer abono es ${abonoLabel}${pm>0?` (${fmt(pm)})`:""}</b>, a pagar <b>máximo ${dias} día${dias>1?'s':''}</b> después de este acuerdo. No puede ser menor; si <b>abona más, ${P.tipoFormato==="mitad"?"adelanta el resto de la deuda":"el excedente cubre la mora"}</b>.</li>
-        <li>El <b>resto</b> lo distribuye como prefiera, pero <b>todo antes del ${fFecha(fl)}</b>.</li>
-        <li>Cada cuota con <b>fecha concreta</b> (día/mes).</li>
-        <li>La suma de sus cuotas debe <b>cubrir el total</b> (${fmt(total)}).</li>
+        <li>El <b>resto</b> se paga en <b>máximo 2 cuotas</b>: la <b>2ª el ${fFecha(dia21ISO())}</b> (mínimo <b>30% del saldo</b>) y la <b>3ª el ${fFecha(dia31ISO())}</b> con lo que falte.</li>
+        <li>Al <b>${fFecha(fl)}</b> debe quedar <b>al día, sin excepción</b>.</li>
+        <li>La suma debe <b>cubrir el total</b> (${fmt(total)}).</li>
       </ul>
       <div style="margin-top:8px;font-weight:700;color:#991B1B">📌 Sin un acuerdo de pago vigente, no se puede prestar el servicio de apoyo educativo.</div>
     </div>
@@ -157,23 +157,24 @@ function render(){
     return;
   }
 
-  // Editor de propuesta
+  // Editor de propuesta — plan fijo de máximo 3 cuotas
   if(!rows.length){
     const prev=P.propuesta?.cuotas;
-    rows = (prev&&prev.length) ? prev.map(c=>({fecha:c.fecha,monto:c.monto})) : [{fecha:hoyISO(), monto:(pm>0?String(pm):"")}];
+    if(prev&&prev.length){ rows=prev.map(c=>({fecha:c.fecha,monto:c.monto})); }
+    else { rows=[{fecha:hoyISO(), monto:(pm>0?String(pm):"")}, {fecha:dia21ISO(),monto:""}, {fecha:dia31ISO(),monto:""}]; }
   }
+  while(rows.length<3) rows.push({fecha:(rows.length===1?dia21ISO():dia31ISO()), monto:""});
   g("app").innerHTML=cabecera+`
     <div style="margin-top:16px">
-      <h2>✍️ Su propuesta de pago</h2>
-      <div id="rows"></div>
-      <button class="btn b-add" onclick="addRow()">➕ Agregar otra cuota</button>
-      <div style="margin-top:12px"><label>Comentario para CORPOSEPI® (opcional)</label><input id="obs" placeholder="Ej: el 20 recibo un pago y abono el resto"></div>
+      <h2>✍️ Su plan de pago <span style="font-size:12px;color:var(--ts);font-weight:400">(máx. 3 cuotas · al día el ${fFecha(P.fechaLimite||"")})</span></h2>
+      <div id="plan"></div>
+      <div style="margin-top:12px"><label>Comentario para CORPOSEPI® (opcional)</label><input id="obs" placeholder="Ej: el 21 recibo un pago y abono el resto"></div>
       <div id="saldo" class="estado"></div>
       <button class="btn b-go" id="enviar" onclick="enviar()">📲 Enviar mi propuesta</button>
       <p class="aviso" style="text-align:center">La revisamos y le confirmamos por WhatsApp.</p>
     </div>`;
   const obsPrev=P.propuesta?.obs; if(obsPrev&&g("obs"))g("obs").value=obsPrev;
-  renderRows();
+  renderPlan();
 }
 
 function abonoMaxISO(){
@@ -182,24 +183,68 @@ function abonoMaxISO(){
   const iso=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
   const fl=P.fechaLimite||""; return (fl&&iso>fl)?fl:iso;
 }
-function renderRows(){
-  const fl=P.fechaLimite||"", min=hoyISO(), abonoMax=abonoMaxISO(), dias=P.diasAbono||3;
+function dia21ISO(){ const fl=P.fechaLimite||""; if(!fl)return hoyISO(); const p=fl.split("-"); const iso=p[0]+"-"+p[1]+"-21"; return iso<hoyISO()?hoyISO():iso; }
+function dia31ISO(){ return P.fechaLimite||hoyISO(); }
+function renderPlan(){
+  const min=hoyISO(), abonoMax=abonoMaxISO(), dias=P.diasAbono||3;
   const abonoLabel=P.abonoLabel||"pensión del mes", pm=(P.abonoMin!=null?P.abonoMin:(P.pensionMes||0));
-  g("rows").innerHTML=rows.map((c,i)=>{
-    const esAbono=i===0, maxF=esAbono?abonoMax:fl;
-    return `
+  const d21=dia21ISO(), d31=dia31ISO();
+  rows[1]=rows[1]||{}; rows[1].fecha=d21;
+  rows[2]=rows[2]||{}; rows[2].fecha=d31;
+  g("plan").innerHTML=`
     <div class="cuota">
-      <div class="cnum">Cuota ${i+1}${esAbono?` · abono inicial · ${abonoLabel}`:""}</div>
+      <div class="cnum">1ª cuota · abono inicial · ${abonoLabel}</div>
       <div class="crow">
-        <div><label>Fecha de pago</label><input type="date" value="${c.fecha||""}" min="${min}" max="${maxF}" onchange="setR(${i},'fecha',this.value)"></div>
-        <div><label>Monto${esAbono&&pm>0?` (mín. ${fmt(pm)})`:""}</label><input type="number" inputmode="numeric" ${esAbono&&pm>0?`min="${pm}"`:""} value="${c.monto||""}" placeholder="$0" oninput="setR(${i},'monto',this.value)"></div>
-        ${rows.length>1?`<button class="b-x" onclick="delR(${i})" title="Quitar">🗑</button>`:'<span></span>'}
+        <div><label>Fecha de pago</label><input type="date" value="${rows[0]?.fecha||""}" min="${min}" max="${abonoMax}" onchange="setPlan(0,'fecha',this.value)"></div>
+        <div><label>Monto (mín. ${fmt(pm)})</label><input type="number" inputmode="numeric" min="${pm}" value="${rows[0]?.monto||""}" placeholder="$0" oninput="setPlan(0,'monto',this.value)"></div>
+        <span></span>
       </div>
-      ${esAbono?`<div id="abono-info" class="hint"></div><div class="hint">📅 Máximo ${dias} día${dias>1?'s':''} desde hoy · a más tardar el ${fFecha(abonoMax)}</div>`:""}
+      <div id="abono-info" class="hint"></div>
+      <div class="hint">📅 Máximo ${dias} día${dias>1?'s':''} desde hoy · a más tardar el ${fFecha(abonoMax)}</div>
+    </div>
+    <div id="plan-saldo" style="text-align:center;font-size:12.5px;margin:8px 0"></div>
+    <div class="cuota">
+      <div class="cnum">2ª cuota · ${fFecha(d21)}</div>
+      <div class="crow">
+        <div><label>Fecha</label><input type="date" value="${d21}" disabled></div>
+        <div><label id="c2-lbl">Monto</label><input id="c2-monto" type="number" inputmode="numeric" value="${rows[1]?.monto||""}" placeholder="$0" oninput="setPlan(1,'monto',this.value)"></div>
+        <span></span>
+      </div>
+      <div id="c2-info" class="hint"></div>
+    </div>
+    <div class="cuota">
+      <div class="cnum" id="c3-title">3ª cuota · ${fFecha(d31)}</div>
+      <div class="crow">
+        <div><label>Fecha</label><input type="date" value="${d31}" disabled></div>
+        <div><label>Monto (resto)</label><input id="c3-monto" type="number" value="${rows[2]?.monto||""}" placeholder="$0" disabled></div>
+        <span></span>
+      </div>
+      <div class="hint">Se calcula solo: saldo − 2ª cuota. Al ${fFecha(d31)} debe quedar al día, <b>sin excepción</b>.</div>
     </div>`;
-  }).join("");
-  saldo();
+  planCompute();
 }
+function planCompute(){
+  const total=P.total||0;
+  const c1=parseInt(rows[0]?.monto)||0, c2=parseInt(rows[1]?.monto)||0;
+  const saldo=Math.max(0,total-c1), c2Min=Math.round(saldo*0.30), c3=Math.max(0,saldo-c2);
+  rows[2]=rows[2]||{fecha:dia31ISO()}; rows[2].monto=c3?String(c3):"";
+  const ps=g("plan-saldo"); if(ps) ps.innerHTML=saldo>0?`Saldo a repartir en 2ª y 3ª: <b>${fmt(saldo)}</b>`:`<span style="color:#16A34A">✓ La 1ª cuota cubre todo</span>`;
+  if(g("c2-lbl")) g("c2-lbl").textContent=`Monto (mín. 30% = ${fmt(c2Min)})`;
+  if(g("c2-monto")) g("c2-monto").min=c2Min;
+  if(g("c3-monto")) g("c3-monto").value=c3||"";
+  if(g("c3-title")) g("c3-title").textContent=`3ª cuota · ${fFecha(dia31ISO())} ${(saldo<=0||c3<=0)?"(no necesaria)":"(lo que falte)"}`;
+  abonoInfo();
+  const c2el=g("c2-info");
+  if(c2el){
+    if(saldo<=0){ c2el.style.color="#16A34A"; c2el.textContent="✓ No requiere más cuotas."; }
+    else if(c2<c2Min){ c2el.style.color="#B91C1C"; c2el.innerHTML=`⚠ Mínimo el 30% del saldo: <b>${fmt(c2Min)}</b>`; }
+    else if(c2>=saldo){ c2el.style.color="#16A34A"; c2el.innerHTML=`✓ Paga todo el saldo el ${fFecha(dia21ISO())} · no necesita 3ª`; }
+    else { c2el.style.color="#16A34A"; c2el.innerHTML=`✓ ${fmt(c2)} el ${fFecha(dia21ISO())} + ${fmt(c3)} el ${fFecha(dia31ISO())}`; }
+  }
+  const v=validarPlan(), el=g("saldo"), btn=g("enviar");
+  if(el&&btn){ if(!v.ok){ el.className="estado warn"; el.innerHTML=v.m; btn.disabled=true; } else { el.className="estado ok"; el.textContent="✓ Plan listo para enviar"; btn.disabled=false; } }
+}
+function setPlan(i,k,v){ rows[i]=rows[i]||{}; rows[i][k]=v; planCompute(); }
 function abonoInfo(){
   const el=g("abono-info"); if(!el)return;
   const pm=(P.abonoMin!=null?P.abonoMin:(P.pensionMes||0)), c0=parseInt(rows[0]?.monto)||0, lbl=P.abonoLabel||"pensión del mes";
@@ -214,43 +259,25 @@ function abonoInfo(){
     el.innerHTML=`✓ ${lbl} <b>${fmt(pm)}</b>${aMora>0?` + <b>${fmt(aMora)}</b> de abono a la mora`:""}${sobra>0?` + ${fmt(sobra)} de más`:""}`;
   }
 }
-function saldo(){
-  const el=g("saldo"), btn=g("enviar"); if(!el)return;
-  abonoInfo();
-  const pm=(P.abonoMin!=null?P.abonoMin:(P.pensionMes||0)), lbl=P.abonoLabel||"pensión del mes";
-  const tot=rows.reduce((s,c)=>s+(parseInt(c.monto)||0),0), total=P.total||0, dif=total-tot;
-  const c0=parseInt(rows[0]?.monto)||0;
-  if(pm>0 && c0<pm){ el.className="estado warn"; el.innerHTML=`El primer abono debe ser <b>al menos ${lbl} (${fmt(pm)})</b>`; btn.disabled=true; return; }
-  if(tot===0){ el.className="estado warn"; el.textContent="Ingrese el monto de cada cuota"; btn.disabled=true; }
-  else if(dif>0){ el.className="estado warn"; el.textContent=`Le faltan ${fmt(dif)} para cubrir el total`; btn.disabled=true; }
-  else if(dif<0){ el.className="estado ok"; el.textContent=`✓ Cubre el total (propone ${fmt(-dif)} de más)`; btn.disabled=false; }
-  else { el.className="estado ok"; el.textContent="✓ Su propuesta cubre exactamente el total"; btn.disabled=false; }
-}
-function setR(i,k,v){ rows[i][k]=v; if(k==="monto")saldo(); }
-function addRow(){ const fl=P.fechaLimite||""; rows.push({fecha:fl,monto:""}); renderRows(); }
-function delR(i){ rows.splice(i,1); if(!rows.length)rows.push({fecha:hoyISO(),monto:""}); renderRows(); }
-
-function validar(){
-  const fl=P.fechaLimite||"", min=hoyISO(), abonoMax=abonoMaxISO(), pm=(P.abonoMin!=null?P.abonoMin:(P.pensionMes||0)), lbl=P.abonoLabel||"pensión del mes", dias=P.diasAbono||3;
-  const cu=rows.filter(c=>(parseInt(c.monto)||0)>0&&c.fecha);
-  if(!cu.length) return {ok:false,m:"Agregue al menos una cuota con fecha y monto."};
-  // Primer abono = mínimo del formato (pensión del mes o 50% de la deuda), pagadero dentro de los días del formato
-  if(pm>0){
-    const c0=rows[0]||{};
-    if((parseInt(c0.monto)||0) < pm) return {ok:false,m:`El primer abono debe ser al menos ${lbl} (${fmt(pm)}).`};
-    if(!c0.fecha || c0.fecha<min || c0.fecha>abonoMax) return {ok:false,m:`El primer abono (${lbl}) debe pagarse máximo el ${fFecha(abonoMax)} — ${dias} día${dias>1?'s':''} desde hoy.`};
+function validarPlan(){
+  const total=P.total||0, pm=(P.abonoMin!=null?P.abonoMin:(P.pensionMes||0)), lbl=P.abonoLabel||"pensión del mes", dias=P.diasAbono||3;
+  const min=hoyISO(), abonoMax=abonoMaxISO();
+  const c1=parseInt(rows[0]?.monto)||0, c1f=rows[0]?.fecha||"";
+  if(c1<pm) return {ok:false,m:`El 1er abono debe ser al menos ${lbl} (${fmt(pm)}).`};
+  if(!c1f||c1f<min||c1f>abonoMax) return {ok:false,m:`El 1er abono debe pagarse a más tardar el ${fFecha(abonoMax)} (${dias} día${dias>1?'s':''}).`};
+  const saldo=Math.max(0,total-c1), c2Min=Math.round(saldo*0.30), c2=parseInt(rows[1]?.monto)||0;
+  const cuotas=[{fecha:c1f,monto:c1}];
+  if(saldo>0){
+    if(c2<c2Min) return {ok:false,m:`La 2ª cuota debe ser mínimo el 30% del saldo (${fmt(c2Min)}).`};
+    if(c2>saldo) return {ok:false,m:`La 2ª cuota no puede superar el saldo (${fmt(saldo)}).`};
+    cuotas.push({fecha:dia21ISO(),monto:c2});
+    const c3=saldo-c2; if(c3>0) cuotas.push({fecha:dia31ISO(),monto:c3});
   }
-  for(const c of cu){
-    if(c.fecha<min) return {ok:false,m:"Las fechas deben ser de hoy en adelante."};
-    if(fl&&c.fecha>fl) return {ok:false,m:`Todas las cuotas deben pagarse a más tardar el ${fFecha(fl)}.`};
-  }
-  const tot=cu.reduce((s,c)=>s+(parseInt(c.monto)||0),0);
-  if(tot<(P.total||0)) return {ok:false,m:"La suma de las cuotas debe cubrir el total pendiente."};
-  return {ok:true,cuotas:cu.map(c=>({fecha:c.fecha,monto:parseInt(c.monto)})).sort((a,b)=>a.fecha<b.fecha?-1:1)};
+  return {ok:true, cuotas};
 }
 function enviar(){
   if(P.fechaLimite && hoyISO()>P.fechaLimite){ alert("⚠ Este formato venció el "+fFecha(P.fechaLimite)+". Solicite uno nuevo a CORPOSEPI®."); render(); return; }
-  const v=validar(); if(!v.ok){ alert("⚠ "+v.m); return; }
+  const v=validarPlan(); if(!v.ok){ alert("⚠ "+v.m.replace(/<[^>]+>/g,"")); return; }
   g("enviar").disabled=true; g("enviar").textContent="Enviando…";
   fbdb.ref("propuestas_acuerdo/"+CC).update({
     estado:"propuesta",
