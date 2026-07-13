@@ -262,6 +262,11 @@ tr:hover td{background:#f8fafc}
 .est-note{font-size:10.5px;color:#94A3B8;margin-top:10px;line-height:1.6}
 .despr{max-width:600px;margin:0 auto;font-size:13px}
 .despr .r{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--gb)}
+/* Resumen ejecutivo: KPIs más compactos para que quepan las cifras grandes */
+#res-kpis .kpi{padding:13px 14px}
+#res-kpis .kpi-v{font-size:19px;letter-spacing:-.3px;white-space:nowrap}
+#res-kpis .kpi-l{margin-bottom:5px}
+#res-kpis .kpi-s{font-size:10px;line-height:1.35}
 @media print{
   body>*{visibility:hidden}
   #pg-estados.on, #pg-estados.on *{visibility:visible}
@@ -3260,15 +3265,16 @@ function rResumen(){
     <div class="hb-txt"><h2>CORPOSEPI va ${pos?'en positivo':'en déficit'}</h2>
     <p>${pos?'Excedente':'Déficit'} del año (feb–${corte}): <b style="font-size:20px">${fmt(Math.abs(exc))}</b> &nbsp;·&nbsp; Efectivo ${fmt(d.efectivo)} &nbsp;·&nbsp; ${pctRec}% recaudo</p></div>
   </div>`;
+  const gastoMesProm = d.mm>0?Math.round(d.gastoTotal/d.mm):0;
   g("res-kpis").innerHTML=[
     conKpi(pos?"ve":"ro",(pos?"Excedente":"Déficit")+" del año",fmt(Math.abs(exc)),"ingresos − gastos"),
     conKpi("corp","Ingresos del año",fmt(d.ingresoCausado),"recaudado "+fmt(d.ingresoRecaudado)),
-    conKpi("am","Gastos del año",fmt(d.gastoTotal),"personal "+fmt(d.gastoNomina)+" + oper. "+fmt(d.gastoOperativo)),
+    conKpi("am","Gastos del año",fmt(d.gastoTotal),"≈ "+fmt(gastoMesProm)+" /mes × "+d.mm+" meses"),
     conKpi("corp","Efectivo disponible",fmt(d.efectivo),"caja / bancos"),
     conKpi("ro","Cartera por cobrar",fmt(d.cxc),deben+" de "+totFam+" familias deben"),
     conKpi("am","Deudas por pagar",fmt(deudaTotal),"préstamos + inversionistas"),
     conKpi("ve","Patrimonio",fmt(d.patrimonioTotal),"valor de la corporación"),
-    conKpi(pctRec>=90?"ve":pctRec>=70?"am":"ro","Recaudo del año",pctRec+"%",alDia+" familias al día")
+    conKpi(pctRec>=90?"ve":pctRec>=70?"am":"ro","Recaudo del año",pctRec+"%",alDia+" de "+totFam+" familias al día")
   ].join("");
   const cV="#16A34A",cA="#F59E0B",cR="#DC2626";
   const sem=(color,titulo,estado,detalle)=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--gb)">
@@ -3286,7 +3292,7 @@ function rResumen(){
   const barra=(lbl,val,color)=>`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>${lbl}</span><b>${fmt(val)}</b></div><div style="background:var(--gf);border-radius:6px;height:24px;overflow:hidden"><div style="width:${Math.round(val/mx*100)}%;height:100%;background:${color}"></div></div></div>`;
   g("res-barras").innerHTML=barra("Ingresos",d.ingresoCausado,cV)+barra("Gastos",d.gastoTotal,cR)+
     `<div style="text-align:right;font-weight:800;color:${pos?'#15803D':'#B91C1C'}">${pos?'Excedente':'Déficit'}: ${fmt(Math.abs(exc))}</div>`;
-  g("res-texto").innerHTML=`Al corte de <b>${corte} ${anio}</b>, CORPOSEPI ha facturado <b>${fmt(d.ingresoCausado)}</b> (recaudado ${fmt(d.ingresoRecaudado)}, ${pctRec}%). Los gastos del año suman <b>${fmt(d.gastoTotal)}</b> (personal ${fmt(d.gastoNomina)}, operativos ${fmt(d.gastoOperativo)}), dejando un ${pos?'<b style="color:#15803D">excedente</b>':'<b style="color:#B91C1C">déficit</b>'} de <b>${fmt(Math.abs(exc))}</b>.<br><br>Hay <b>${deben}</b> de <b>${totFam}</b> familias con pagos pendientes (cartera por cobrar ${fmt(d.cxc)}). La corporación adeuda <b>${fmt(deudaTotal)}</b> entre préstamos e inversionistas y tiene <b>${fmt(d.efectivo)}</b> en efectivo. El patrimonio es de <b>${fmt(d.patrimonioTotal)}</b>.${!d.nomDetallada?'<br><br>💡 Aún no cargas la Nómina detallada: los salarios se toman del Presupuesto. Cárgala para ver el costo real con prestaciones y aportes.':''}`;
+  g("res-texto").innerHTML=`Al corte de <b>${corte} ${anio}</b>, CORPOSEPI ha facturado <b>${fmt(d.ingresoCausado)}</b> (recaudado ${fmt(d.ingresoRecaudado)}, ${pctRec}%). Los gastos del año suman <b>${fmt(d.gastoTotal)}</b> (personal ${fmt(d.gastoNomina)}, operativos ${fmt(d.gastoOperativo)}), dejando un ${pos?'<b style="color:#15803D">excedente</b>':'<b style="color:#B91C1C">déficit</b>'} de <b>${fmt(Math.abs(exc))}</b>.<br><br>Hay <b>${deben}</b> de <b>${totFam}</b> familias con pagos pendientes (cartera por cobrar ${fmt(d.cxc)}). La corporación adeuda <b>${fmt(deudaTotal)}</b> entre préstamos e inversionistas y tiene <b>${fmt(d.efectivo)}</b> en efectivo. El patrimonio es de <b>${fmt(d.patrimonioTotal)}</b>.<br><br><b>🔎 De dónde sale cada cifra:</b><br>• <b>Ingresos</b>: de la Cartera (pensiones vencidas feb–${corte} + matrículas).<br>• <b>Gastos del año ${fmt(d.gastoTotal)}</b>: de tu Presupuesto (≈ ${fmt(gastoMesProm)}/mes × ${d.mm} meses)${d.nomDetallada?' + Nómina detallada':''}. Para cambiarlos, edita el <b>Presupuesto</b>.<br>• <b>Efectivo, deudas y patrimonio</b>: de Inversionistas/Deudas y los saldos iniciales (Estados → ⚙️).${!d.nomDetallada?'<br><br>💡 Aún no cargas la Nómina detallada: los salarios se toman del Presupuesto. Cárgala para ver el costo real con prestaciones y aportes.':''}`;
 }
 
 function refrescarDesdeFirebase(){
