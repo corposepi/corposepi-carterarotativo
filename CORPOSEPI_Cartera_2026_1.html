@@ -2020,7 +2020,7 @@ function docHead(tit,num,femi,fven){
   return `<div class="doc-hd">
     <div style="display:flex;gap:12px;align-items:flex-start">
       <img src="logo-corposepi.png" alt="CORPOSEPI">
-      <div class="doc-em"><b>${c.nombre||"CORPOSEPI®"}</b><br>${c.nit?("NIT "+c.nit+"<br>"):""}${c.direccion||"Madrid, Cundinamarca"}<br>${c.tel?("Tel: "+c.tel):""}</div>
+      <div class="doc-em"><b>${c.nombre||"CORPOSEPI®"}</b><br><span style="font-size:10px">Corp. de Servicios Educativos Pensamiento e Innovación</span><br>NIT ${(c.nit||"901.898.846-6")}<br>${c.direccion||"Madrid, Cundinamarca"}<br>${c.tel?("Tel: "+c.tel):"Tel: 320 833 1293"}</div>
     </div>
     <div class="doc-tt"><div class="t">${tit}</div><div class="n">${num}</div><div class="d">Emisión: ${fFecha(femi)}${fven?`<br>Vence: ${fFecha(fven)}`:""}</div></div>
   </div>`;

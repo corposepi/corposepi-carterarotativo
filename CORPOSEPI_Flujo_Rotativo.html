@@ -2937,10 +2937,10 @@ let _fbListo = false;
 // ═══════════════════════════════════════════════════════════
 let CONTA_CFG={}, EMPLEADOS_FB={}, GASTOS_FB={};
 const NOM_T={saludEmp:4,pensionEmp:4,saludPat:8.5,pensionPat:12,sena:2,icbf:3,caja:4,cesantias:8.33,intCes:1,prima:8.33,vacaciones:4.17};
-function contaCfg(){ return Object.assign({smmlv:1500000,auxTransporte:200000,exoneracion:false,cajaInicial:0,fondoSocial:0,resultadosAcum:0}, CONTA_CFG||{}); }
+function contaCfg(){ return Object.assign({razonSocial:"Corporación de Servicios Educativos Pensamiento e Innovación — CORPOSEPI",nit:"901.898.846-6",smmlv:1500000,auxTransporte:200000,exoneracion:false,cajaInicial:0,fondoSocial:0,resultadosAcum:0}, CONTA_CFG||{}); }
 function mesesTranscurridos(){ return Math.max(0, idxMesActual()+1); } // feb=1 … mes actual
 function conKpi(cls,l,v,s){ return `<div class="kpi ${cls}"><div class="kpi-l">${l}</div><div class="kpi-v">${v}</div><div class="kpi-s">${s||""}</div></div>`; }
-function emisorHd(sub){ return `<div class="est-hd"><img src="logo-corposepi.png" alt="CORPOSEPI"><div><h3>CORPOSEPI®</h3><div class="s">Entidad sin ánimo de lucro · NIT ${(contaCfg().nit||"—")} · Madrid, Cundinamarca<br>${sub}</div></div></div>`; }
+function emisorHd(sub){ const c=contaCfg(); return `<div class="est-hd"><img src="logo-corposepi.png" alt="CORPOSEPI"><div><h3>${c.razonSocial||"CORPOSEPI®"}</h3><div class="s">Entidad sin ánimo de lucro (ESAL) · NIT ${(c.nit||"—")} · Madrid, Cundinamarca<br>${sub}</div></div></div>`; }
 
 // ── LIQUIDACIÓN DE NÓMINA (Colombia) ──
 function liqEmpleado(e){
