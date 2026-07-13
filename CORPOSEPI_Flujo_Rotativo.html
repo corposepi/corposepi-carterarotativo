@@ -305,6 +305,7 @@ tr:hover td{background:#f8fafc}
   </div>
   <div class="sb-sec">Gestión del Fondo</div>
   <button class="nb on" onclick="ir('dashboard',this)">📊 Dashboard Fondo</button>
+  <button class="nb" onclick="ir('resumen',this)">🩺 ¿Cómo va CORPOSEPI?</button>
   <button class="nb" onclick="ir('ciclo',this)">🔄 Ciclo Mensual <span class="nbg" id="nb-al">0</span></button>
   <button class="nb" onclick="ir('morosos',this)">⚠️ Pendientes de Pago <span class="nbg" id="nb-mor">0</span></button>
   <button class="nb" onclick="ir('bolsillo',this)">💰 Bolsillo Rotativo</button>
@@ -407,6 +408,15 @@ tr:hover td{background:#f8fafc}
     </div>
 
     <!-- ══ CICLO MENSUAL ══ -->
+    <!-- RESUMEN EJECUTIVO -->
+    <div class="pg" id="pg-resumen">
+      <div id="res-verdicto"></div>
+      <div class="kpis" id="res-kpis"></div>
+      <div class="card"><div class="card-h"><h3>🚦 Semáforo de salud</h3></div><div id="res-semaforo" style="padding:14px"></div></div>
+      <div class="card"><div class="card-h"><h3>⚖️ Ingresos vs Gastos (año)</h3></div><div id="res-barras" style="padding:16px"></div></div>
+      <div class="card"><div class="card-h"><h3>📝 En palabras</h3></div><div id="res-texto" style="padding:16px;line-height:1.7"></div></div>
+    </div>
+
     <div class="pg" id="pg-ciclo">
       <div class="alert-corp" id="ciclo-alerta" style="display:none">
         <div class="ai">🔔</div>
@@ -1312,6 +1322,7 @@ const WM_MOR = {
 // ══════════════════════════════════════
 const PAGES = {
   dashboard: {el:"pg-dashboard", tit:"📊 Dashboard del Fondo Rotativo", sub:"Resumen ejecutivo · CORPOSEPI® · 2026"},
+  resumen: {el:"pg-resumen", tit:"🩺 ¿Cómo va CORPOSEPI?", sub:"Resumen ejecutivo · salud financiera de la corporación en vivo"},
   ciclo: {el:"pg-ciclo", tit:"🔄 Ciclo Mensual", sub:"Estado mes a mes del fondo rotativo"},
   morosos: {el:"pg-morosos", tit:"⚠️ Reporte de Pendientes de Pago — Día 6+", sub:"Familias pendientes de pago · Base del préstamo mensual"},
   bolsillo: {el:"pg-bolsillo", tit:"💰 Bolsillo Rotativo", sub:"Pagos recuperados de las familias · Fondo de devolución"},
@@ -1340,6 +1351,7 @@ function ir(id, btn) {
   g("pg-tit").textContent = PAGES[id].tit;
   g("pg-sub").textContent = PAGES[id].sub;
   if (id === "dashboard") rDashboard();
+  if (id === "resumen") rResumen();
   if (id === "ciclo") rCiclo();
   if (id === "morosos") rMorosos();
   if (id === "bolsillo") rBolsillo();
@@ -3235,10 +3247,53 @@ function rEstados(){
 function abrirEstCfg(){ const c=contaCfg(); g("ec-caja").value=c.cajaInicial||""; g("ec-fondo").value=c.fondoSocial||""; g("ec-acum").value=c.resultadosAcum||""; ab("ov-estcfg"); }
 function guardarEstCfg(){ const campos={cajaInicial:parseInt(g("ec-caja").value)||0,fondoSocial:parseInt(g("ec-fondo").value)||0,resultadosAcum:parseInt(g("ec-acum").value)||0}; fbdb.ref("rotativo_v1/contabilidad/config").update(campos).then(()=>{c("ov-estcfg");toast("✅ Saldos iniciales guardados");}).catch(e=>toast("⚠ "+e.message)); }
 
+// ── RESUMEN EJECUTIVO · ¿Cómo va CORPOSEPI? ──
+function rResumen(){
+  const d=estData(), fams=DB_CARTERA||[];
+  const totFam=fams.length, alDia=fams.filter(f=>f.estado==="aldia").length, deben=fams.filter(f=>(f.deuda||0)>0).length;
+  const pctRec=d.ingresoCausado>0?Math.round(d.ingresoRecaudado/d.ingresoCausado*100):100;
+  const deudasCP=d.prestamosPorPagar+d.interesPorPagar;
+  const deudaTotal=d.prestamosPorPagar+d.interesPorPagar+d.inversionistasPorPagar;
+  const exc=d.excedente, pos=exc>=0, corte=MESES_NM[idxMesActual()+2]||"", anio=new Date().getFullYear();
+  g("res-verdicto").innerHTML=`<div class="hero-banner" style="background:linear-gradient(135deg,${pos?'#065F46,#059669':'#7F1D1D,#B91C1C'})">
+    <div class="hb-icon">${pos?'✅':'⚠️'}</div>
+    <div class="hb-txt"><h2>CORPOSEPI va ${pos?'en positivo':'en déficit'}</h2>
+    <p>${pos?'Excedente':'Déficit'} del año (feb–${corte}): <b style="font-size:20px">${fmt(Math.abs(exc))}</b> &nbsp;·&nbsp; Efectivo ${fmt(d.efectivo)} &nbsp;·&nbsp; ${pctRec}% recaudo</p></div>
+  </div>`;
+  g("res-kpis").innerHTML=[
+    conKpi(pos?"ve":"ro",(pos?"Excedente":"Déficit")+" del año",fmt(Math.abs(exc)),"ingresos − gastos"),
+    conKpi("corp","Ingresos del año",fmt(d.ingresoCausado),"recaudado "+fmt(d.ingresoRecaudado)),
+    conKpi("am","Gastos del año",fmt(d.gastoTotal),"personal "+fmt(d.gastoNomina)+" + oper. "+fmt(d.gastoOperativo)),
+    conKpi("corp","Efectivo disponible",fmt(d.efectivo),"caja / bancos"),
+    conKpi("ro","Cartera por cobrar",fmt(d.cxc),deben+" de "+totFam+" familias deben"),
+    conKpi("am","Deudas por pagar",fmt(deudaTotal),"préstamos + inversionistas"),
+    conKpi("ve","Patrimonio",fmt(d.patrimonioTotal),"valor de la corporación"),
+    conKpi(pctRec>=90?"ve":pctRec>=70?"am":"ro","Recaudo del año",pctRec+"%",alDia+" familias al día")
+  ].join("");
+  const cV="#16A34A",cA="#F59E0B",cR="#DC2626";
+  const sem=(color,titulo,estado,detalle)=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--gb)">
+    <div style="width:14px;height:14px;border-radius:50%;background:${color};flex-shrink:0"></div>
+    <div style="flex:1"><b>${titulo}</b><div style="font-size:12px;color:var(--ts)">${detalle}</div></div>
+    <div style="font-weight:800;color:${color}">${estado}</div></div>`;
+  const sExc=pos?[cV,"Positivo"]:[cR,"Negativo"];
+  const sRec=pctRec>=90?[cV,"Sano"]:pctRec>=70?[cA,"Atención"]:[cR,"Crítico"];
+  const sLiq=d.efectivo>=deudasCP?[cV,"Cubre"]:(d.efectivo>=deudasCP*0.5?[cA,"Ajustado"]:[cR,"Riesgo"]);
+  g("res-semaforo").innerHTML=
+    sem(sExc[0],"Sostenibilidad (excedente)",sExc[1],pos?"Los ingresos cubren los gastos.":"Los gastos superan los ingresos — revisar.")+
+    sem(sRec[0],"Recaudo de cartera",sRec[1],pctRec+"% de lo facturado ya está recaudado.")+
+    sem(sLiq[0],"Liquidez",sLiq[1],"Efectivo "+fmt(d.efectivo)+" frente a deudas de corto plazo "+fmt(deudasCP)+".");
+  const mx=Math.max(d.ingresoCausado,d.gastoTotal,1);
+  const barra=(lbl,val,color)=>`<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px"><span>${lbl}</span><b>${fmt(val)}</b></div><div style="background:var(--gf);border-radius:6px;height:24px;overflow:hidden"><div style="width:${Math.round(val/mx*100)}%;height:100%;background:${color}"></div></div></div>`;
+  g("res-barras").innerHTML=barra("Ingresos",d.ingresoCausado,cV)+barra("Gastos",d.gastoTotal,cR)+
+    `<div style="text-align:right;font-weight:800;color:${pos?'#15803D':'#B91C1C'}">${pos?'Excedente':'Déficit'}: ${fmt(Math.abs(exc))}</div>`;
+  g("res-texto").innerHTML=`Al corte de <b>${corte} ${anio}</b>, CORPOSEPI ha facturado <b>${fmt(d.ingresoCausado)}</b> (recaudado ${fmt(d.ingresoRecaudado)}, ${pctRec}%). Los gastos del año suman <b>${fmt(d.gastoTotal)}</b> (personal ${fmt(d.gastoNomina)}, operativos ${fmt(d.gastoOperativo)}), dejando un ${pos?'<b style="color:#15803D">excedente</b>':'<b style="color:#B91C1C">déficit</b>'} de <b>${fmt(Math.abs(exc))}</b>.<br><br>Hay <b>${deben}</b> de <b>${totFam}</b> familias con pagos pendientes (cartera por cobrar ${fmt(d.cxc)}). La corporación adeuda <b>${fmt(deudaTotal)}</b> entre préstamos e inversionistas y tiene <b>${fmt(d.efectivo)}</b> en efectivo. El patrimonio es de <b>${fmt(d.patrimonioTotal)}</b>.${!d.nomDetallada?'<br><br>💡 Aún no cargas la Nómina detallada: los salarios se toman del Presupuesto. Cárgala para ver el costo real con prestaciones y aportes.':''}`;
+}
+
 function refrescarDesdeFirebase(){
   reconstruirCartera();
   actualizarBadges();
   rDashboard();
+  if (g("pg-resumen")?.classList.contains("on")) rResumen();
   if (g("pg-estados")?.classList.contains("on")) rEstados();
   if (g("pg-gastos")?.classList.contains("on")) rGastos();
   if (g("pg-nomina")?.classList.contains("on")) rNomina();
