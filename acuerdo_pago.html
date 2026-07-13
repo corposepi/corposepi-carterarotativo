@@ -96,6 +96,15 @@ function render(){
     return;
   }
 
+  // Incumplido → servicio de apoyo educativo restringido
+  if(P.estado==="incumplido"){
+    g("app").innerHTML=`<div class="ok-box"><div class="ei">⛔</div><h2>Servicio restringido</h2>
+      <p class="aviso">Familia <b>${P.nombre||""}</b>, el acuerdo de pago quedó <b>incumplido</b> y el <b>servicio de apoyo educativo está restringido</b>.</p>
+      <div class="espera" style="text-align:left;margin-top:12px">Para reactivarlo, por favor comuníquese con CORPOSEPI® y regularice su pago.</div>
+      <p class="aviso" style="margin-top:10px">📞 320 833 1293</p></div>`;
+    return;
+  }
+
   // Formato vencido: el plazo es el último día del mes; pasada esa fecha no se puede crear el acuerdo
   if(P.fechaLimite && hoyISO() > P.fechaLimite){
     g("app").innerHTML=`<div class="ok-box"><div class="ei">⌛</div><h2>Este formato ya venció</h2>
@@ -108,8 +117,10 @@ function render(){
   const total=P.total||0;
   const desg=(P.desglose||[]);
   const fl=P.fechaLimite||"";
-  const pm=P.pensionMes||0;
   const mesNom=(P.mesActual||"este mes").split(" ")[0];
+  const pm=(P.abonoMin!=null?P.abonoMin:(P.pensionMes||0));
+  const abonoLabel=P.abonoLabel||("pensión de "+mesNom);
+  const dias=P.diasAbono||3;
 
   // Bloque de deuda + condiciones (común)
   const cabecera=`
@@ -122,11 +133,12 @@ function render(){
     <div class="meta">🎯 <b>Meta:</b> quedar completamente al día <b>antes del ${fFecha(fl)}</b> (último día de ${P.mesActual||"este mes"}).</div>
     <div class="cond">Para que su propuesta sea válida, tenga en cuenta:
       <ul>
-        <li>El <b>primer abono es la pensión de ${mesNom}${pm>0?` (${fmt(pm)})`:""}</b>, a pagar <b>máximo 5 días</b> después de este acuerdo. No puede ser menor; si <b>abona más, el excedente cubre la mora</b>.</li>
+        <li>El <b>primer abono es ${abonoLabel}${pm>0?` (${fmt(pm)})`:""}</b>, a pagar <b>máximo ${dias} día${dias>1?'s':''}</b> después de este acuerdo. No puede ser menor; si <b>abona más, ${P.tipoFormato==="mitad"?"adelanta el resto de la deuda":"el excedente cubre la mora"}</b>.</li>
         <li>El <b>resto</b> lo distribuye como prefiera, pero <b>todo antes del ${fFecha(fl)}</b>.</li>
         <li>Cada cuota con <b>fecha concreta</b> (día/mes).</li>
         <li>La suma de sus cuotas debe <b>cubrir el total</b> (${fmt(total)}).</li>
       </ul>
+      <div style="margin-top:8px;font-weight:700;color:#991B1B">📌 Sin un acuerdo de pago vigente, no se puede prestar el servicio de apoyo educativo.</div>
     </div>
     <div class="espera">⏳ <b>Importante:</b> enviar este formulario <b>no</b> significa que el acuerdo ya esté aprobado. CORPOSEPI® debe <b>revisarlo y aceptarlo</b>. Usted recibirá un mensaje de WhatsApp con la <b>aceptación</b>, una <b>contrapropuesta</b> o un <b>rechazo</b>. El acuerdo queda <b>en firme solo cuando reciba esa confirmación</b>.</div>`;
 
@@ -165,43 +177,50 @@ function render(){
 }
 
 function abonoMaxISO(){
-  const d=new Date(); d.setDate(d.getDate()+5);
+  const dias=P.diasAbono||3;
+  const d=new Date(); d.setDate(d.getDate()+dias);
   const iso=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
   const fl=P.fechaLimite||""; return (fl&&iso>fl)?fl:iso;
 }
 function renderRows(){
-  const fl=P.fechaLimite||"", min=hoyISO(), abonoMax=abonoMaxISO(), mesNom=(P.mesActual||"este mes").split(" ")[0], pm=P.pensionMes||0;
+  const fl=P.fechaLimite||"", min=hoyISO(), abonoMax=abonoMaxISO(), dias=P.diasAbono||3;
+  const abonoLabel=P.abonoLabel||"pensión del mes", pm=(P.abonoMin!=null?P.abonoMin:(P.pensionMes||0));
   g("rows").innerHTML=rows.map((c,i)=>{
     const esAbono=i===0, maxF=esAbono?abonoMax:fl;
     return `
     <div class="cuota">
-      <div class="cnum">Cuota ${i+1}${esAbono?` · abono inicial · pensión de ${mesNom}`:""}</div>
+      <div class="cnum">Cuota ${i+1}${esAbono?` · abono inicial · ${abonoLabel}`:""}</div>
       <div class="crow">
         <div><label>Fecha de pago</label><input type="date" value="${c.fecha||""}" min="${min}" max="${maxF}" onchange="setR(${i},'fecha',this.value)"></div>
         <div><label>Monto${esAbono&&pm>0?` (mín. ${fmt(pm)})`:""}</label><input type="number" inputmode="numeric" ${esAbono&&pm>0?`min="${pm}"`:""} value="${c.monto||""}" placeholder="$0" oninput="setR(${i},'monto',this.value)"></div>
         ${rows.length>1?`<button class="b-x" onclick="delR(${i})" title="Quitar">🗑</button>`:'<span></span>'}
       </div>
-      ${esAbono?`<div id="abono-info" class="hint"></div><div class="hint">📅 Máximo 5 días desde hoy · a más tardar el ${fFecha(abonoMax)}</div>`:""}
+      ${esAbono?`<div id="abono-info" class="hint"></div><div class="hint">📅 Máximo ${dias} día${dias>1?'s':''} desde hoy · a más tardar el ${fFecha(abonoMax)}</div>`:""}
     </div>`;
   }).join("");
   saldo();
 }
 function abonoInfo(){
   const el=g("abono-info"); if(!el)return;
-  const pm=P.pensionMes||0, c0=parseInt(rows[0]?.monto)||0, mesNom=(P.mesActual||"este mes").split(" ")[0];
+  const pm=(P.abonoMin!=null?P.abonoMin:(P.pensionMes||0)), c0=parseInt(rows[0]?.monto)||0, lbl=P.abonoLabel||"pensión del mes";
   if(pm<=0){ el.textContent=""; return; }
-  if(c0<pm){ el.style.color="#B91C1C"; el.innerHTML=`⚠ El primer abono debe ser mínimo la pensión de ${mesNom}: <b>${fmt(pm)}</b>`; return; }
-  const mora=Math.max(0,(P.total||0)-pm), extra=c0-pm, aMora=Math.min(extra,mora), sobra=extra-aMora;
+  if(c0<pm){ el.style.color="#B91C1C"; el.innerHTML=`⚠ El primer abono debe ser mínimo ${lbl}: <b>${fmt(pm)}</b>`; return; }
   el.style.color="#16A34A";
-  el.innerHTML=`✓ Pensión de ${mesNom} <b>${fmt(pm)}</b>${aMora>0?` + <b>${fmt(aMora)}</b> de abono a la mora`:""}${sobra>0?` + ${fmt(sobra)} de más`:""}`;
+  const extra=c0-pm;
+  if(P.tipoFormato==="mitad"){
+    el.innerHTML=`✓ ${lbl} <b>${fmt(pm)}</b>${extra>0?` + ${fmt(extra)} adicional (adelanta el resto)`:""}`;
+  } else {
+    const mora=Math.max(0,(P.total||0)-pm), aMora=Math.min(extra,mora), sobra=extra-aMora;
+    el.innerHTML=`✓ ${lbl} <b>${fmt(pm)}</b>${aMora>0?` + <b>${fmt(aMora)}</b> de abono a la mora`:""}${sobra>0?` + ${fmt(sobra)} de más`:""}`;
+  }
 }
 function saldo(){
   const el=g("saldo"), btn=g("enviar"); if(!el)return;
   abonoInfo();
-  const pm=P.pensionMes||0, mesNom=(P.mesActual||"este mes").split(" ")[0];
+  const pm=(P.abonoMin!=null?P.abonoMin:(P.pensionMes||0)), lbl=P.abonoLabel||"pensión del mes";
   const tot=rows.reduce((s,c)=>s+(parseInt(c.monto)||0),0), total=P.total||0, dif=total-tot;
   const c0=parseInt(rows[0]?.monto)||0;
-  if(pm>0 && c0<pm){ el.className="estado warn"; el.innerHTML=`El primer abono debe ser <b>al menos la pensión de ${mesNom} (${fmt(pm)})</b>`; btn.disabled=true; return; }
+  if(pm>0 && c0<pm){ el.className="estado warn"; el.innerHTML=`El primer abono debe ser <b>al menos ${lbl} (${fmt(pm)})</b>`; btn.disabled=true; return; }
   if(tot===0){ el.className="estado warn"; el.textContent="Ingrese el monto de cada cuota"; btn.disabled=true; }
   else if(dif>0){ el.className="estado warn"; el.textContent=`Le faltan ${fmt(dif)} para cubrir el total`; btn.disabled=true; }
   else if(dif<0){ el.className="estado ok"; el.textContent=`✓ Cubre el total (propone ${fmt(-dif)} de más)`; btn.disabled=false; }
@@ -212,14 +231,14 @@ function addRow(){ const fl=P.fechaLimite||""; rows.push({fecha:fl,monto:""}); r
 function delR(i){ rows.splice(i,1); if(!rows.length)rows.push({fecha:hoyISO(),monto:""}); renderRows(); }
 
 function validar(){
-  const fl=P.fechaLimite||"", min=hoyISO(), abonoMax=abonoMaxISO(), pm=P.pensionMes||0, mesNom=(P.mesActual||"este mes").split(" ")[0];
+  const fl=P.fechaLimite||"", min=hoyISO(), abonoMax=abonoMaxISO(), pm=(P.abonoMin!=null?P.abonoMin:(P.pensionMes||0)), lbl=P.abonoLabel||"pensión del mes", dias=P.diasAbono||3;
   const cu=rows.filter(c=>(parseInt(c.monto)||0)>0&&c.fecha);
   if(!cu.length) return {ok:false,m:"Agregue al menos una cuota con fecha y monto."};
-  // Primer abono = pensión del mes en curso, pagadero dentro de 5 días
+  // Primer abono = mínimo del formato (pensión del mes o 50% de la deuda), pagadero dentro de los días del formato
   if(pm>0){
     const c0=rows[0]||{};
-    if((parseInt(c0.monto)||0) < pm) return {ok:false,m:`El primer abono debe ser al menos la pensión de ${mesNom} (${fmt(pm)}).`};
-    if(!c0.fecha || c0.fecha<min || c0.fecha>abonoMax) return {ok:false,m:`El primer abono (pensión de ${mesNom}) debe pagarse máximo el ${fFecha(abonoMax)} — 5 días desde hoy.`};
+    if((parseInt(c0.monto)||0) < pm) return {ok:false,m:`El primer abono debe ser al menos ${lbl} (${fmt(pm)}).`};
+    if(!c0.fecha || c0.fecha<min || c0.fecha>abonoMax) return {ok:false,m:`El primer abono (${lbl}) debe pagarse máximo el ${fFecha(abonoMax)} — ${dias} día${dias>1?'s':''} desde hoy.`};
   }
   for(const c of cu){
     if(c.fecha<min) return {ok:false,m:"Las fechas deben ser de hoy en adelante."};

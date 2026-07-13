@@ -402,7 +402,7 @@ tr:hover td{background:#f7faff}
     <div class="pg" id="pg-acuerdos">
       <div class="alert-b" style="background:linear-gradient(135deg,#EAF7EE,#F2FBF5);border-color:#16A34A">
         <span style="font-size:22px">🤝</span>
-        <p style="color:#15803D"><strong>Acuerdos con propuesta del papá</strong> — Envíele un <b>formato en línea</b>: el papá ve su deuda y propone sus fechas y montos. Usted revisa, <b>acepta o contra-propone</b>, y al aceptar se guarda el acuerdo y sale el WhatsApp de confirmación.</p>
+        <p style="color:#15803D"><strong>Acuerdos con propuesta del papá</strong> — Elige el formato según el caso: <b>📄 Pensión</b> (1er abono = pensión del mes, máx. 3 días) o <b>💰 50%</b> (1er abono ≥ 50% de la deuda, 1 día). El papá propone sus fechas; usted <b>acepta o contra-propone</b>. Si no cumple el pago del día pactado, use <b>⚠️ No cumplió</b> para avisarle y restringir el servicio. <i>Sin acuerdo vigente no se presta el servicio de apoyo educativo.</i></p>
       </div>
       <div class="card"><div class="card-h"><h3>📨 Propuestas por revisar</h3></div><div id="ac-nuevas"></div></div>
       <div class="card"><div class="card-h"><h3>⏳ Formatos enviados (esperando respuesta)</h3></div><div id="ac-espera"></div></div>
@@ -1840,7 +1840,8 @@ function desgloseMoraArr(f){
 // URL pública del formato para esta familia
 function formatoLink(cc){ const base=location.origin+location.pathname.replace(/[^/]*$/,''); return base+"acuerdo_pago.html?cc="+cc; }
 // Envía (o reenvía) el formato: guarda el snapshot de la deuda y abre WhatsApp con el link
-function enviarFormato(cc){
+function enviarFormato(cc, tipo){
+  tipo = tipo||"pension"; // 'pension' (1er abono = pensión del mes, 3 días) | 'mitad' (1er abono = 50% del total, 1 día)
   const f=DB.find(x=>String(x.cc)===String(cc)); if(!f){toast("⚠ Familia no encontrada");return;}
   if((f.deuda||0)<=0){toast("Esta familia está al día");return;}
   const ex=PROPUESTAS[cc];
@@ -1848,13 +1849,34 @@ function enviarFormato(cc){
   const now=new Date(), fin=new Date(now.getFullYear(),now.getMonth()+1,0);
   const fechaLimite=fin.getFullYear()+"-"+String(fin.getMonth()+1).padStart(2,"0")+"-"+String(fin.getDate()).padStart(2,"0");
   const idxAct=idxMesActual();
-  const pensionMes=Math.max(0,(f.esperadoPorMes?.[idxAct]||0)-(f.pagosMes?.[idxAct]||0)); // pensión del mes en curso pendiente (1er abono)
-  const prop={estado:"enviado", nombre:(f.nombres+" "+(f.apellidos||"")).trim(), tel:f.celular||"",
-    estudiantes:(f.estudiantes||[]).map(e=>e.nombre), total:f.deuda||0, desglose:desgloseMoraArr(f),
-    pensionMes, mesActual:mesLabel(mesKeyHoy()), fechaLimite, fechaEnvio:hoy()};
+  const pensionMes=Math.max(0,(f.esperadoPorMes?.[idxAct]||0)-(f.pagosMes?.[idxAct]||0)); // pensión del mes en curso pendiente
+  const total=f.deuda||0, mesNom=(mesLabel(mesKeyHoy())||"").split(" ")[0];
+  let abonoMin, diasAbono, abonoLabel;
+  if(tipo==="mitad"){ abonoMin=Math.round(total*0.5); diasAbono=1; abonoLabel="50% de la deuda"; }
+  else { abonoMin=pensionMes; diasAbono=3; abonoLabel="pensión de "+mesNom; }
+  const prop={estado:"enviado", tipoFormato:tipo, nombre:(f.nombres+" "+(f.apellidos||"")).trim(), tel:f.celular||"",
+    estudiantes:(f.estudiantes||[]).map(e=>e.nombre), total, desglose:desgloseMoraArr(f),
+    pensionMes, abonoMin, diasAbono, abonoLabel, mesActual:mesLabel(mesKeyHoy()), fechaLimite, fechaEnvio:hoy()};
   fbdb.ref("propuestas_acuerdo/"+cc).set(prop)
-    .then(()=>{ toast("☁️ Formato enviado"); abrirFormatoWA(cc,"enviado"); })
+    .then(()=>{ toast("☁️ Formato enviado ("+(tipo==="mitad"?"50%":"pensión")+")"); abrirFormatoWA(cc,"enviado"); })
     .catch(e=>toast("❌ "+e.message));
+}
+function marcarIncumplido(cc){
+  const p=PROPUESTAS[cc]; if(!p)return;
+  if(!confirm("¿Marcar que "+(p.nombre||"la familia")+" NO cumplió el pago acordado?\nSe le enviará el aviso de incumplimiento y queda con el servicio de apoyo educativo RESTRINGIDO.")) return;
+  fbdb.ref("propuestas_acuerdo/"+cc).update({estado:"incumplido", servicioRestringido:true, fechaIncumplido:hoy()})
+    .then(()=>{ toast("⚠️ Marcado como incumplido"); abrirIncumplidoWA(cc); }).catch(e=>toast("❌ "+e.message));
+}
+function abrirIncumplidoWA(cc){
+  const p=PROPUESTAS[cc]||{}, f=DB.find(x=>String(x.cc)===String(cc));
+  const num=((p.tel||f?.celular||"")+"").replace(/\D/g,""); if(!num){toast("⚠ Esta familia no tiene celular");return;}
+  const tel=num.startsWith("57")?num:"57"+num;
+  const msg=`Cordial saludo, familia *${p.nombre||""}* 🙏\n\nLe informamos que *no se registró el pago acordado* en la fecha pactada, por lo que el *acuerdo de pago quedó incumplido*.\n\n⛔ Por esta razón, *se restringe la prestación del servicio de apoyo educativo* hasta regularizar su situación.\n\nPara reactivarlo, comuníquese y realice el pago. 📞 320 833 1293\n\n_CORPOSEPI®_`;
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,"_blank");
+}
+function reactivarAcuerdo(cc){
+  if(!confirm("¿Reactivar el servicio? (la familia ya pagó / regularizó)")) return;
+  fbdb.ref("propuestas_acuerdo/"+cc).update({estado:"aceptado", servicioRestringido:false}).then(()=>toast("✓ Servicio reactivado")).catch(e=>toast("❌ "+e.message));
 }
 // Abre WhatsApp con el link del formato (tipo: 'enviado' = pedir propuesta / 'contra' = revisar ajustes)
 function abrirFormatoWA(cc,tipo){
@@ -1899,12 +1921,13 @@ function descartarPropuesta(cc){
   if(!confirm("¿Descartar esta propuesta/formato de la familia?")) return;
   fbdb.ref("propuestas_acuerdo/"+cc).remove().then(()=>toast("🗑 Descartado")).catch(e=>toast("❌ "+e.message));
 }
-const AC_EST_LBL={enviado:"📤 Enviado",propuesta:"📨 Propuso",contrapropuesta:"↩️ Contra",aceptado:"✅ Aceptado",rechazado:"✕ Rechazado"};
+const AC_EST_LBL={enviado:"📤 Enviado",propuesta:"📨 Propuso",contrapropuesta:"↩️ Contra",aceptado:"✅ Aceptado",incumplido:"⛔ Incumplido",rechazado:"✕ Rechazado"};
 function rAcuerdos(){
   const ent=Object.entries(PROPUESTAS);
   const nuevas=ent.filter(([cc,p])=>p.estado==="propuesta");
   const espera=ent.filter(([cc,p])=>p.estado==="enviado"||p.estado==="contrapropuesta");
   const listos=ent.filter(([cc,p])=>p.estado==="aceptado");
+  const incump=ent.filter(([cc,p])=>p.estado==="incumplido");
   // Propuestas por revisar
   g("ac-nuevas").innerHTML = nuevas.length ? nuevas.map(([cc,p])=>{
     const cu=(p.propuesta?.cuotas)||[], tot=cu.reduce((s,c)=>s+(parseInt(c.monto)||0),0), cubre=tot>=(p.total||0);
@@ -1931,16 +1954,28 @@ function rAcuerdos(){
       <div style="display:flex;gap:6px"><button class="ab a-wa" onclick="abrirFormatoWA('${cc}','${p.estado==='contrapropuesta'?'contra':'enviado'}')">💬 Reenviar</button><button class="ab a-dl" onclick="descartarPropuesta('${cc}')">🗑</button></div>
     </div>`;
   }).join("") : '<div style="padding:14px;color:var(--ts);font-size:13px">Nada pendiente de respuesta.</div>';
-  // Aceptados
-  g("ac-listos").innerHTML = listos.length ? listos.map(([cc,p])=>{
+  // Aceptados + Incumplidos
+  const htmlListos = listos.map(([cc,p])=>{
     const a=ACUERDOS[cc], cu=(a?.cuotas)||(p.propuesta?.cuotas)||[], tot=cu.reduce((s,c)=>s+(parseInt(c.monto)||0),0);
-    return `<div style="border-bottom:1px solid var(--gb);padding:9px 0"><div style="display:flex;justify-content:space-between"><b>${p.nombre}</b><span style="color:#16A34A;font-weight:800">${fmt(tot)}</span></div><div style="font-size:12px;color:var(--ts);margin-top:3px">${cu.map(c=>`${fFecha(c.fecha)}: ${fmt(c.monto)}`).join(" · ")||"—"}</div></div>`;
-  }).join("") : '<div style="padding:14px;color:var(--ts);font-size:13px">Aún no hay acuerdos aceptados.</div>';
+    return `<div style="border-bottom:1px solid var(--gb);padding:9px 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>${p.nombre}</b><span style="color:#16A34A;font-weight:800">${fmt(tot)}</span></div>
+      <div style="font-size:12px;color:var(--ts);margin:3px 0">${cu.map(c=>`${fFecha(c.fecha)}: ${fmt(c.monto)}`).join(" · ")||"—"}</div>
+      <button class="ab a-dl" onclick="marcarIncumplido('${cc}')" title="No pagó el día pactado → restringir servicio">⚠️ No cumplió</button>
+    </div>`;
+  }).join("");
+  const htmlIncump = incump.map(([cc,p])=>`<div style="border-bottom:1px solid var(--gb);padding:9px 0;background:#FEF2F2;border-radius:8px;margin-bottom:4px;padding-left:8px;padding-right:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>${p.nombre}</b><span class="bg" style="background:#FEE2E2;color:#B91C1C">⛔ Incumplido · servicio restringido</span></div>
+      <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap"><button class="ab a-wa" onclick="abrirIncumplidoWA('${cc}')">💬 Reenviar aviso</button><button class="ab a-pg" onclick="reactivarAcuerdo('${cc}')">✓ Reactivar (ya pagó)</button></div>
+    </div>`).join("");
+  g("ac-listos").innerHTML = (listos.length||incump.length) ? (htmlListos+htmlIncump) : '<div style="padding:14px;color:var(--ts);font-size:13px">Aún no hay acuerdos aceptados.</div>';
   // Enviar formato (familias con deuda)
   const conDeuda=DB.filter(f=>(f.deuda||0)>0).sort((a,b)=>(b.deuda||0)-(a.deuda||0));
   g("ac-enviar").innerHTML = conDeuda.length ? '<table><thead><tr><th>Familia</th><th>Deuda</th><th>Estado</th><th></th></tr></thead><tbody>'+conDeuda.map(f=>{
-    const p=PROPUESTAS[f.cc], est=p?(AC_EST_LBL[p.estado]||"—"):"—";
-    return `<tr><td>${f.nombres} ${f.apellidos}<div style="font-size:10px;color:var(--ts)">${(f.estudiantes||[]).map(e=>e.nombre).join(", ")}</div></td><td style="color:var(--ro);font-weight:700">${fmt(f.deuda)}</td><td style="font-size:12px">${est}</td><td><button class="ab a-wa" onclick="enviarFormato('${f.cc}')">📤 ${p?"Reenviar":"Enviar"}</button></td></tr>`;
+    const p=PROPUESTAS[f.cc], est=p?((AC_EST_LBL[p.estado]||"—")+(p.tipoFormato?` · ${p.tipoFormato==="mitad"?"50%":"pensión"}`:"")):"—";
+    return `<tr><td>${f.nombres} ${f.apellidos}<div style="font-size:10px;color:var(--ts)">${(f.estudiantes||[]).map(e=>e.nombre).join(", ")}</div></td><td style="color:var(--ro);font-weight:700">${fmt(f.deuda)}</td><td style="font-size:12px">${est}</td><td><div style="display:flex;gap:4px;flex-wrap:wrap">
+      <button class="ab a-wa" onclick="enviarFormato('${f.cc}','pension')" title="1er abono = pensión del mes · 3 días">📄 Pensión</button>
+      <button class="ab a-pg" onclick="enviarFormato('${f.cc}','mitad')" title="1er abono = 50% de la deuda · 1 día">💰 50%</button>
+    </div></td></tr>`;
   }).join("")+'</tbody></table>' : '<div style="padding:14px;color:var(--ts)">Ninguna familia con deuda.</div>';
 }
 
