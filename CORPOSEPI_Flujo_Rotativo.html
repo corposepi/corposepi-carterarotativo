@@ -245,6 +245,33 @@ tr:hover td{background:#f8fafc}
   .bolsillo-v{font-size:26px}
   table{font-size:12px}
 }
+/* ── Estados financieros / documentos ── */
+.est{background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(20,50,90,.06)}
+.est-hd{display:flex;gap:12px;align-items:center;border-bottom:2px solid var(--az);padding-bottom:10px;margin-bottom:12px}
+.est-hd img{width:56px;height:56px;object-fit:contain}
+.est-hd h3{font-family:"Syne",sans-serif;color:var(--az);font-size:16px;margin:0}
+.est-hd .s{font-size:11px;color:var(--ts)}
+.est table{width:100%;border-collapse:collapse;font-size:13px}
+.est table td{padding:5px 4px;border-bottom:1px solid var(--gb)}
+.est table td.v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.est .sec{font-weight:800;color:var(--az);padding-top:10px;text-transform:uppercase;font-size:11px;letter-spacing:.5px}
+.est .sub{padding-left:14px;color:#334155}
+.est .tot{font-weight:800;border-top:2px solid var(--az)}
+.est .grand{font-weight:800;font-size:15px;color:var(--az);background:var(--gf)}
+.est .pos{color:#15803D}.est .neg{color:#B91C1C}
+.est-note{font-size:10.5px;color:#94A3B8;margin-top:10px;line-height:1.6}
+.despr{max-width:600px;margin:0 auto;font-size:13px}
+.despr .r{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--gb)}
+@media print{
+  body>*{visibility:hidden}
+  #pg-estados.on, #pg-estados.on *{visibility:visible}
+  #pg-estados.on{position:absolute;inset:0;padding:0}
+  #pg-estados .hero-banner, #pg-estados button{display:none !important}
+  #ov-docn.on, #ov-docn.on *{visibility:visible}
+  #ov-docn.on{position:absolute;inset:0;background:#fff;display:block !important}
+  #ov-docn.on .modal{box-shadow:none;max-width:100%;border-radius:0}
+  #ov-docn .mo-f, #ov-docn .mo-x{display:none !important}
+}
 </style>
 </head>
 <body>
@@ -287,6 +314,9 @@ tr:hover td{background:#f8fafc}
   <button class="nb" onclick="ir('prestamo',this)">🏦 Préstamos (con interés)</button>
   <button class="nb" onclick="ir('compromisos',this)">💼 Compromisos (sin interés)</button>
   <button class="nb" onclick="ir('inversiones',this)">💎 Inversionistas y Deudas</button>
+  <button class="nb" onclick="ir('gastos',this)">💸 Gastos</button>
+  <button class="nb" onclick="ir('nomina',this)">👥 Nómina</button>
+  <button class="nb" onclick="ir('estados',this)">📊 Estados Financieros</button>
   <button class="nb" onclick="ir('config',this)">⚙️ Configuración</button>
   <button class="nb" onclick="cerrarSesion()" style="opacity:.75">🔓 Salir</button>
   <a class="sb-link" href="CORPOSEPI_Cartera_2026_1.html" target="_blank">📂 Abrir Módulo Cartera →</a>
@@ -552,6 +582,49 @@ tr:hover td{background:#f8fafc}
     </div>
 
     <!-- ══ CONFIGURACIÓN ══ -->
+    <!-- GASTOS -->
+    <div class="pg" id="pg-gastos">
+      <div class="hero-banner" style="background:linear-gradient(135deg,#7C2D12,#B45309)">
+        <div class="hb-icon">💸</div>
+        <div class="hb-txt"><h2>Libro de Gastos</h2><p>Registra los gastos reales de la corporación: arriendo, servicios, proveedores, honorarios. Alimenta el Estado de Resultados y el Balance. La <b>nómina</b> se maneja en su propia pestaña.</p></div>
+      </div>
+      <div class="kpis" id="gastos-kpis"></div>
+      <div class="card">
+        <div class="card-h"><h3>💸 Gastos registrados</h3><button class="btn b-corp b-sm" onclick="abrirGasto()">➕ Nuevo gasto</button></div>
+        <div id="gastos-lista"></div>
+      </div>
+    </div>
+
+    <!-- NÓMINA -->
+    <div class="pg" id="pg-nomina">
+      <div class="hero-banner" style="background:linear-gradient(135deg,#155E75,#0E7490)">
+        <div class="hb-icon">👥</div>
+        <div class="hb-txt"><h2>Nómina</h2><p>Empleados con prestaciones y contratistas por honorarios. Calcula la liquidación mensual (devengado, deducciones, aportes y prestaciones) y el <b>costo real</b> para la corporación.</p></div>
+      </div>
+      <div class="kpis" id="nomina-kpis"></div>
+      <div class="card">
+        <div class="card-h"><h3>👥 Personal</h3><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn b-o b-sm" onclick="abrirNomCfg()">⚙️ Parámetros</button><button class="btn b-corp b-sm" onclick="abrirEmpleado()">➕ Agregar persona</button></div></div>
+        <div id="nomina-lista"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>🧾 Liquidación del mes (detalle)</h3></div>
+        <div id="nomina-liq"></div>
+      </div>
+    </div>
+
+    <!-- ESTADOS FINANCIEROS -->
+    <div class="pg" id="pg-estados">
+      <div class="hero-banner" style="background:linear-gradient(135deg,#1E3A8A,#4338CA)">
+        <div class="hb-icon">📊</div>
+        <div class="hb-txt"><h2>Estados Financieros</h2><p>CORPOSEPI® · Entidad sin ánimo de lucro (ESAL) · NIF. Calculados en vivo desde cartera, facturación, gastos, nómina, deudas e inversiones. <b>Informe de gestión</b> — los oficiales los firma un contador público.</p></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="btn b-o b-sm" onclick="abrirEstCfg()">⚙️ Saldos iniciales</button>
+        <button class="btn b-p b-sm" onclick="window.print()">🖨️ Imprimir / PDF</button>
+      </div>
+      <div id="est-body"></div>
+    </div>
+
     <div class="pg" id="pg-config">
       <div class="card" style="max-width:600px">
         <div class="card-h"><h3>⚙️ Configuración del Fondo</h3></div>
@@ -967,6 +1040,131 @@ tr:hover td{background:#f8fafc}
 </div>
 </div>
 
+<!-- ══ MODAL: GASTO CONTABLE ══ -->
+<div class="ov" id="ov-gastoc">
+<div class="modal modal-sm">
+  <div class="mo-h"><div class="mo-h-ico">💸</div><div class="mo-h-info"><h2 id="gc-titulo">Nuevo gasto</h2><p>Gasto contable de la corporación</p></div><button class="mo-x" onclick="c('ov-gastoc')">✕</button></div>
+  <div class="mo-b">
+    <div class="ff"><label>Concepto / descripción *</label><input id="gc-desc" placeholder="Ej: Arriendo sede Nepenthe · Recibo de energía · Insumos"></div>
+    <div class="fg c2" style="margin-top:8px">
+      <div class="ff"><label>Categoría</label><select id="gc-cat" onchange="gcCuenta()">
+        <option value="Arriendos">Arriendos</option>
+        <option value="Servicios públicos">Servicios públicos</option>
+        <option value="Honorarios">Honorarios</option>
+        <option value="Proveedores e insumos">Proveedores e insumos</option>
+        <option value="Mantenimiento y reparaciones">Mantenimiento y reparaciones</option>
+        <option value="Transporte y viáticos">Transporte y viáticos</option>
+        <option value="Papelería y útiles">Papelería y útiles</option>
+        <option value="Gastos financieros">Gastos financieros</option>
+        <option value="Impuestos y contribuciones">Impuestos y contribuciones</option>
+        <option value="Diversos / otros">Diversos / otros</option>
+      </select></div>
+      <div class="ff"><label>Valor mensual ($)</label><input id="gc-valor" type="number" placeholder="$ 0"></div>
+    </div>
+    <div class="fg c2" style="margin-top:8px">
+      <div class="ff"><label>Tipo</label><select id="gc-tipo" onchange="gcTogglePeriodo()"><option value="mensual">Mensual (recurrente)</option><option value="unico">Único (un mes)</option></select></div>
+      <div class="ff"><label>Estado</label><select id="gc-estado"><option value="pagado">Pagado</option><option value="porpagar">Por pagar (causado)</option></select></div>
+    </div>
+    <div class="fg c2" id="gc-periodo-box" style="margin-top:8px">
+      <div class="ff"><label>Desde (mes)</label><select id="gc-desde"></select></div>
+      <div class="ff"><label>Hasta (mes)</label><select id="gc-hasta"></select></div>
+    </div>
+    <div class="ff" style="margin-top:8px"><label>Proveedor / beneficiario (opcional)</label><input id="gc-prov" placeholder="Nombre o NIT"></div>
+    <div class="ff" style="margin-top:8px"><label>Fecha</label><input id="gc-fecha" type="date"></div>
+  </div>
+  <div class="mo-f">
+    <button class="btn b-o" onclick="c('ov-gastoc')">Cancelar</button>
+    <button class="btn b-corp" onclick="guardarGasto()">✓ Guardar gasto</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: EMPLEADO / CONTRATISTA ══ -->
+<div class="ov" id="ov-empleado">
+<div class="modal modal-sm">
+  <div class="mo-h"><div class="mo-h-ico">👤</div><div class="mo-h-info"><h2 id="emp-titulo">Agregar persona</h2><p>Empleado o contratista</p></div><button class="mo-x" onclick="c('ov-empleado')">✕</button></div>
+  <div class="mo-b">
+    <div class="fg c2">
+      <div class="ff"><label>Nombre completo *</label><input id="emp-nombre" placeholder="Ej: Carolina Pérez"></div>
+      <div class="ff"><label>Documento</label><input id="emp-doc" placeholder="CC"></div>
+    </div>
+    <div class="fg c2" style="margin-top:8px">
+      <div class="ff"><label>Cargo</label><input id="emp-cargo" placeholder="Ej: Docente, Administrativo"></div>
+      <div class="ff"><label>Vínculo</label><select id="emp-tipo" onchange="empToggleTipo()">
+        <option value="empleado">Empleado (con prestaciones)</option>
+        <option value="contratista">Contratista (honorarios)</option>
+      </select></div>
+    </div>
+    <div class="ff" style="margin-top:8px"><label id="emp-lbl-val">Salario mensual ($)</label><input id="emp-salario" type="number" placeholder="$ 0" oninput="empHint()"></div>
+    <div id="emp-emp-box">
+      <div class="fg c2" style="margin-top:8px">
+        <div class="ff"><label>Clase ARL (%)</label><select id="emp-arl">
+          <option value="0.522">I — 0.522% (administrativo/docente)</option>
+          <option value="1.044">II — 1.044%</option>
+          <option value="2.436">III — 2.436%</option>
+          <option value="4.350">IV — 4.350%</option>
+          <option value="6.960">V — 6.960%</option>
+        </select></div>
+        <div class="ff"><label>Fecha de ingreso</label><input id="emp-ingreso" type="date"></div>
+      </div>
+      <div class="ht" id="emp-hint" style="font-size:11px;color:var(--ts);margin-top:8px;background:var(--gf);border-radius:8px;padding:8px"></div>
+    </div>
+  </div>
+  <div class="mo-f">
+    <button class="btn b-o" onclick="c('ov-empleado')">Cancelar</button>
+    <button class="btn b-corp" onclick="guardarEmpleado()">✓ Guardar</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: PARÁMETROS DE NÓMINA ══ -->
+<div class="ov" id="ov-nomcfg">
+<div class="modal modal-sm">
+  <div class="mo-h"><div class="mo-h-ico">⚙️</div><div class="mo-h-info"><h2>Parámetros de nómina</h2><p>Valores legales Colombia · edítalos por año</p></div><button class="mo-x" onclick="c('ov-nomcfg')">✕</button></div>
+  <div class="mo-b">
+    <div class="fg c2">
+      <div class="ff"><label>SMMLV (salario mínimo) ($)</label><input id="nc-smmlv" type="number" placeholder="1500000"></div>
+      <div class="ff"><label>Auxilio de transporte ($)</label><input id="nc-aux" type="number" placeholder="200000"></div>
+    </div>
+    <div class="ff" style="margin-top:8px"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="nc-exo"> Exoneración de aportes (Art. 114-1 E.T.): sin salud patronal, SENA e ICBF para salarios < 10 SMMLV</label></div>
+    <div class="ht" style="font-size:11px;color:var(--ts);margin-top:8px;background:var(--gf);border-radius:8px;padding:8px">Tasas fijas de ley: Salud 4%+8.5% · Pensión 4%+12% · Caja 4% · SENA 2% · ICBF 3% · Cesantías 8.33% · Int. cesantías 1% · Prima 8.33% · Vacaciones 4.17%. El auxilio de transporte aplica si el salario ≤ 2 SMMLV.</div>
+  </div>
+  <div class="mo-f">
+    <button class="btn b-o" onclick="c('ov-nomcfg')">Cancelar</button>
+    <button class="btn b-corp" onclick="guardarNomCfg()">✓ Guardar</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: SALDOS INICIALES (ESTADOS) ══ -->
+<div class="ov" id="ov-estcfg">
+<div class="modal modal-sm">
+  <div class="mo-h"><div class="mo-h-ico">⚙️</div><div class="mo-h-info"><h2>Saldos iniciales</h2><p>Para el Balance y el Patrimonio</p></div><button class="mo-x" onclick="c('ov-estcfg')">✕</button></div>
+  <div class="mo-b">
+    <div class="ff"><label>Efectivo inicial del año ($)</label><input id="ec-caja" type="number" placeholder="Saldo en caja/bancos al iniciar"></div>
+    <div class="ff" style="margin-top:8px"><label>Fondo social / aportes iniciales ($)</label><input id="ec-fondo" type="number" placeholder="Patrimonio inicial de la corporación"></div>
+    <div class="ff" style="margin-top:8px"><label>Resultados de ejercicios anteriores ($)</label><input id="ec-acum" type="number" placeholder="Excedentes acumulados (puede ser 0)"></div>
+    <div class="ht" style="font-size:11px;color:var(--ts);margin-top:8px;background:var(--gf);border-radius:8px;padding:8px">Estos valores son el punto de partida. Todo lo demás (ingresos, gastos, nómina, deudas) se calcula solo desde los datos.</div>
+  </div>
+  <div class="mo-f">
+    <button class="btn b-o" onclick="c('ov-estcfg')">Cancelar</button>
+    <button class="btn b-corp" onclick="guardarEstCfg()">✓ Guardar</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: DOCUMENTO IMPRIMIBLE (desprendible de nómina) ══ -->
+<div class="ov" id="ov-docn">
+<div class="modal" style="max-width:640px">
+  <div class="mo-h"><div class="mo-h-info"><h2 id="docn-tit">Desprendible de nómina</h2></div><button class="mo-x" onclick="c('ov-docn')">✕</button></div>
+  <div class="mo-b"><div id="docn-body"></div></div>
+  <div class="mo-f">
+    <button class="btn b-o" onclick="c('ov-docn')">Cerrar</button>
+    <button class="btn b-p" onclick="window.print()">🖨️ Imprimir / PDF</button>
+  </div>
+</div>
+</div>
+
 <div class="toast" id="toast">✓</div>
 
 <script>
@@ -1122,6 +1320,9 @@ const PAGES = {
   prestamo: {el:"pg-prestamo", tit:"🏦 Préstamos del Fondo", sub:"Registro y seguimiento de préstamos para cubrir mora"},
   compromisos: {el:"pg-compromisos", tit:"💼 Compromisos de Pago", sub:"Gastos cubiertos con pensiones comprometidas · sin interés"},
   inversiones: {el:"pg-inversiones", tit:"💎 Inversionistas y Deudas", sub:"Inversión en tokens (interés compuesto) y préstamos recibidos (interés mensual)"},
+  gastos: {el:"pg-gastos", tit:"💸 Gastos", sub:"Libro de gastos · arriendo, servicios, proveedores, honorarios · causados y pagados"},
+  nomina: {el:"pg-nomina", tit:"👥 Nómina", sub:"Empleados (con prestaciones) y contratistas · liquidación mensual Colombia"},
+  estados: {el:"pg-estados", tit:"📊 Estados Financieros", sub:"Resultados · Situación Financiera · Flujo de Efectivo · Cambios en el Patrimonio · ESAL/NIF"},
   config: {el:"pg-config", tit:"⚙️ Configuración del Fondo", sub:"Parámetros del fondo rotativo CORPOSEPI®"},
 };
 
@@ -1147,6 +1348,9 @@ function ir(id, btn) {
   if (id === "prestamo") rPrestamos();
   if (id === "compromisos") { rCuentas(); rCompromisos(); }
   if (id === "inversiones") rInversiones();
+  if (id === "gastos") rGastos();
+  if (id === "nomina") rNomina();
+  if (id === "estados") rEstados();
   if (id === "config") rConfig();
 }
 
@@ -2728,10 +2932,298 @@ function toast(msg, dur = 3200) {
 // SINCRONIZACIÓN CON FIREBASE (cartera real en la nube)
 // ══════════════════════════════════════
 let _fbListo = false;
+// ═══════════════════════════════════════════════════════════
+// CONTABILIDAD · Gastos · Nómina · Estados Financieros (ESAL/NIF)
+// ═══════════════════════════════════════════════════════════
+let CONTA_CFG={}, EMPLEADOS_FB={}, GASTOS_FB={};
+const NOM_T={saludEmp:4,pensionEmp:4,saludPat:8.5,pensionPat:12,sena:2,icbf:3,caja:4,cesantias:8.33,intCes:1,prima:8.33,vacaciones:4.17};
+function contaCfg(){ return Object.assign({smmlv:1500000,auxTransporte:200000,exoneracion:false,cajaInicial:0,fondoSocial:0,resultadosAcum:0}, CONTA_CFG||{}); }
+function mesesTranscurridos(){ return Math.max(0, idxMesActual()+1); } // feb=1 … mes actual
+function conKpi(cls,l,v,s){ return `<div class="kpi ${cls}"><div class="kpi-l">${l}</div><div class="kpi-v">${v}</div><div class="kpi-s">${s||""}</div></div>`; }
+function emisorHd(sub){ return `<div class="est-hd"><img src="logo-corposepi.png" alt="CORPOSEPI"><div><h3>CORPOSEPI®</h3><div class="s">Entidad sin ánimo de lucro · NIT ${(contaCfg().nit||"—")} · Madrid, Cundinamarca<br>${sub}</div></div></div>`; }
+
+// ── LIQUIDACIÓN DE NÓMINA (Colombia) ──
+function liqEmpleado(e){
+  const cfg=contaCfg();
+  if(e.tipo==="contratista"){
+    const v=parseInt(e.valorMes||e.salario)||0;
+    return {tipo:"contratista",salario:v,aux:0,devengado:v,saludEmp:0,pensionEmp:0,neto:v,aportes:0,prestaciones:0,det:{},costoTotal:v};
+  }
+  const sal=parseInt(e.salario)||0;
+  const aux=(sal>0 && sal<=2*(cfg.smmlv||0))?(parseInt(cfg.auxTransporte)||0):0;
+  const devengado=sal+aux;
+  const saludEmp=Math.round(sal*NOM_T.saludEmp/100), pensionEmp=Math.round(sal*NOM_T.pensionEmp/100);
+  const neto=devengado-saludEmp-pensionEmp;
+  const exo=!!cfg.exoneracion && sal < 10*(cfg.smmlv||0);
+  const saludPat=exo?0:Math.round(sal*NOM_T.saludPat/100);
+  const pensionPat=Math.round(sal*NOM_T.pensionPat/100);
+  const arl=Math.round(sal*(parseFloat(e.arlClase)||0.522)/100);
+  const sena=exo?0:Math.round(sal*NOM_T.sena/100);
+  const icbf=exo?0:Math.round(sal*NOM_T.icbf/100);
+  const caja=Math.round(sal*NOM_T.caja/100);
+  const aportes=saludPat+pensionPat+arl+sena+icbf+caja;
+  const cesantias=Math.round(devengado*NOM_T.cesantias/100);
+  const intCes=Math.round(devengado*NOM_T.intCes/100);
+  const prima=Math.round(devengado*NOM_T.prima/100);
+  const vacaciones=Math.round(sal*NOM_T.vacaciones/100);
+  const prestaciones=cesantias+intCes+prima+vacaciones;
+  return {tipo:"empleado",salario:sal,aux,devengado,saludEmp,pensionEmp,neto,aportes,prestaciones,
+    det:{saludPat,pensionPat,arl,sena,icbf,caja,cesantias,intCes,prima,vacaciones,exo},
+    costoTotal:devengado+aportes+prestaciones};
+}
+function nomTotales(){
+  let costoMes=0,empleados=0,contratistas=0,prestacionesMes=0,netoMes=0;
+  Object.values(EMPLEADOS_FB||{}).filter(e=>e.activo!==false).forEach(e=>{
+    const l=liqEmpleado(e); costoMes+=l.costoTotal; netoMes+=l.neto;
+    if(e.tipo==="contratista")contratistas++; else {empleados++; prestacionesMes+=l.prestaciones;}
+  });
+  return {costoMes,empleados,contratistas,prestacionesMes,netoMes};
+}
+
+// ── PÁGINA NÓMINA ──
+function rNomina(){
+  const t=nomTotales(), mm=mesesTranscurridos();
+  g("nomina-kpis").innerHTML=[
+    conKpi("corp","Costo nómina / mes",fmt(t.costoMes),(t.empleados)+" empleados · "+(t.contratistas)+" contratistas"),
+    conKpi("ro","Costo acumulado año",fmt(t.costoMes*mm),mm+" meses (feb–mes actual)"),
+    conKpi("ve","Neto a pagar / mes",fmt(t.netoMes),"lo que reciben"),
+    conKpi("am","Provisión prestaciones/mes",fmt(t.prestacionesMes),"cesantías, prima, vac.")
+  ].join("");
+  const ents=Object.entries(EMPLEADOS_FB||{});
+  const el=g("nomina-lista");
+  if(!ents.length){ el.innerHTML='<div class="empty" style="padding:30px"><p>Agrega empleados o contratistas con "➕ Agregar persona".</p></div>'; g("nomina-liq").innerHTML=""; return; }
+  el.innerHTML='<table><thead><tr><th>Nombre</th><th>Vínculo</th><th>Salario/Valor</th><th>Costo total/mes</th><th>Acciones</th></tr></thead><tbody>'+
+    ents.map(([id,e])=>{ const l=liqEmpleado(e); const inact=e.activo===false;
+      return `<tr style="${inact?'opacity:.5':''}">
+        <td><b>${e.nombre||""}</b><div style="font-size:10px;color:var(--ts)">${e.cargo||""}${e.doc?" · CC "+e.doc:""}</div></td>
+        <td>${e.tipo==="contratista"?'<span class="bg" style="background:#E0F2FE;color:#0369A1">Contratista</span>':'<span class="bg" style="background:#DCFCE7;color:#15803D">Empleado</span>'}</td>
+        <td>${fmt(l.salario)}${l.aux?`<div style="font-size:10px;color:var(--ts)">+ aux ${fmt(l.aux)}</div>`:""}</td>
+        <td style="font-weight:700">${fmt(l.costoTotal)}</td>
+        <td><div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="btn b-o b-sm" onclick="verDesprendible('${id}')">🧾 Desprendible</button>
+          <button class="btn b-o b-sm" onclick="abrirEmpleado('${id}')">✏</button>
+          <button class="btn b-o b-sm" onclick="borrarEmpleado('${id}')">🗑</button>
+        </div></td></tr>`;
+    }).join("")+'</tbody></table>';
+  // Detalle de liquidación del mes (empleados)
+  const emps=ents.filter(([id,e])=>e.tipo!=="contratista"&&e.activo!==false);
+  if(!emps.length){ g("nomina-liq").innerHTML='<div style="padding:14px;color:var(--ts);font-size:13px">Sin empleados con prestaciones (los contratistas solo facturan su honorario).</div>'; return; }
+  g("nomina-liq").innerHTML='<div style="overflow-x:auto"><table style="min-width:640px"><thead><tr><th>Empleado</th><th>Devengado</th><th>Salud+Pens (emp)</th><th>Neto</th><th>Aportes patrón</th><th>Prestaciones</th><th>Costo total</th></tr></thead><tbody>'+
+    emps.map(([id,e])=>{ const l=liqEmpleado(e); return `<tr>
+      <td>${e.nombre||""}</td><td>${fmt(l.devengado)}</td><td>-${fmt(l.saludEmp+l.pensionEmp)}</td>
+      <td style="font-weight:700;color:#15803D">${fmt(l.neto)}</td><td>${fmt(l.aportes)}</td><td>${fmt(l.prestaciones)}</td>
+      <td style="font-weight:800;color:var(--az)">${fmt(l.costoTotal)}</td></tr>`; }).join("")+'</tbody></table></div>';
+}
+function empToggleTipo(){ const t=g("emp-tipo").value; g("emp-emp-box").style.display=(t==="empleado")?"block":"none"; g("emp-lbl-val").textContent=(t==="empleado")?"Salario mensual ($)":"Valor mensual del contrato ($)"; empHint(); }
+function empHint(){ if(g("emp-tipo").value!=="empleado"){g("emp-hint").textContent="";return;} const sal=parseInt(g("emp-salario").value)||0; if(!sal){g("emp-hint").textContent="";return;} const l=liqEmpleado({tipo:"empleado",salario:sal,arlClase:parseFloat(g("emp-arl").value)||0.522}); g("emp-hint").innerHTML=`Neto a pagar: <b>${fmt(l.neto)}</b> · Costo total para la corporación: <b>${fmt(l.costoTotal)}</b> (incluye aportes ${fmt(l.aportes)} + prestaciones ${fmt(l.prestaciones)})`; }
+let empEditId=null;
+function abrirEmpleado(id){ empEditId=(typeof id==="string")?id:null; const e=empEditId?EMPLEADOS_FB[empEditId]:{};
+  g("emp-titulo").textContent=empEditId?"Editar persona":"Agregar persona";
+  g("emp-nombre").value=e.nombre||""; g("emp-doc").value=e.doc||""; g("emp-cargo").value=e.cargo||"";
+  g("emp-tipo").value=e.tipo||"empleado"; g("emp-salario").value=e.salario||e.valorMes||"";
+  g("emp-arl").value=e.arlClase||"0.522"; g("emp-ingreso").value=e.fechaIngreso||hoy();
+  empToggleTipo(); ab("ov-empleado"); }
+function guardarEmpleado(){ const nombre=g("emp-nombre").value.trim(); const val=parseInt(g("emp-salario").value)||0;
+  if(!nombre||!val){toast("⚠ Pon nombre y valor");return;}
+  const tipo=g("emp-tipo").value;
+  const campos={nombre,doc:g("emp-doc").value.trim()||"",cargo:g("emp-cargo").value.trim()||"",tipo,activo:true};
+  if(tipo==="empleado"){ campos.salario=val; campos.arlClase=parseFloat(g("emp-arl").value)||0.522; campos.fechaIngreso=g("emp-ingreso").value||hoy(); }
+  else { campos.valorMes=val; }
+  const id=empEditId||("emp_"+Date.now());
+  fbdb.ref("rotativo_v1/contabilidad/empleados/"+id).update(campos).then(()=>{c("ov-empleado");toast("✅ Persona guardada");empEditId=null;}).catch(e=>toast("⚠ "+e.message)); }
+function borrarEmpleado(id){ if(!EMPLEADOS_FB[id])return; if(!confirm("¿Eliminar a "+(EMPLEADOS_FB[id].nombre||"")+"?"))return; fbdb.ref("rotativo_v1/contabilidad/empleados/"+id).remove().then(()=>toast("🗑 Eliminado")).catch(e=>toast("⚠ "+e.message)); }
+function abrirNomCfg(){ const c=contaCfg(); g("nc-smmlv").value=c.smmlv; g("nc-aux").value=c.auxTransporte; g("nc-exo").checked=!!c.exoneracion; ab("ov-nomcfg"); }
+function guardarNomCfg(){ const campos={smmlv:parseInt(g("nc-smmlv").value)||0,auxTransporte:parseInt(g("nc-aux").value)||0,exoneracion:g("nc-exo").checked}; fbdb.ref("rotativo_v1/contabilidad/config").update(campos).then(()=>{c("ov-nomcfg");toast("✅ Parámetros guardados");}).catch(e=>toast("⚠ "+e.message)); }
+function desprendibleHTML(e,l){
+  const cfg=contaCfg();
+  const filas=(arr)=>arr.map(([k,v])=>`<div class="r"><span>${k}</span><b>${fmt(v)}</b></div>`).join("");
+  const dev=[["Salario",l.salario]]; if(l.aux)dev.push(["Auxilio de transporte",l.aux]);
+  const ded=[["Salud (4%)",l.saludEmp],["Pensión (4%)",l.pensionEmp]];
+  let patr="";
+  if(e.tipo!=="contratista"){ const d=l.det;
+    patr=`<div class="est-hd" style="border:none;margin-top:14px;padding:0"><h3 style="font-size:13px">Costo para la corporación (aportes y prestaciones)</h3></div>
+    ${filas([["Salud patronal (8.5%)",d.saludPat],["Pensión patronal (12%)",d.pensionPat],["ARL",d.arl],["SENA (2%)",d.sena],["ICBF (3%)",d.icbf],["Caja compensación (4%)",d.caja],["Cesantías (8.33%)",d.cesantias],["Int. cesantías (1%)",d.intCes],["Prima (8.33%)",d.prima],["Vacaciones (4.17%)",d.vacaciones]])}
+    <div class="r" style="border-top:2px solid var(--az);font-size:15px"><span><b>COSTO TOTAL MES</b></span><b style="color:var(--az)">${fmt(l.costoTotal)}</b></div>
+    ${d.exo?'<div class="est-note">Aplica exoneración Art. 114-1 E.T. (sin salud patronal, SENA e ICBF).</div>':''}`;
+  } else {
+    patr=`<div class="r" style="border-top:2px solid var(--az);font-size:15px"><span><b>HONORARIO MES</b></span><b style="color:var(--az)">${fmt(l.costoTotal)}</b></div><div class="est-note">Contrato de prestación de servicios. El contratista asume su seguridad social.</div>`;
+  }
+  return `<div class="est despr">${emisorHd((e.tipo==="contratista"?"Cuenta de cobro / honorarios":"Desprendible de nómina")+" · "+(MESES_NM[idxMesActual()+2]||"")+" "+new Date().getFullYear())}
+    <div style="margin-bottom:10px"><b>${e.nombre||""}</b>${e.doc?` · CC ${e.doc}`:""}${e.cargo?` · ${e.cargo}`:""}</div>
+    ${e.tipo!=="contratista"?`<div class="est-hd" style="border:none;padding:0;margin:0"><h3 style="font-size:13px">Devengado</h3></div>${filas(dev)}<div class="r"><span>Total devengado</span><b>${fmt(l.devengado)}</b></div>
+    <div class="est-hd" style="border:none;padding:0;margin-top:10px"><h3 style="font-size:13px">Deducciones</h3></div>${filas(ded)}
+    <div class="r" style="border-top:2px solid var(--ve);font-size:15px"><span><b>NETO A PAGAR</b></span><b style="color:#15803D">${fmt(l.neto)}</b></div>`:""}
+    ${patr}
+  </div>`;
+}
+function verDesprendible(id){ const e=EMPLEADOS_FB[id]; if(!e)return; const l=liqEmpleado(e); g("docn-tit").textContent="Desprendible · "+(e.nombre||""); g("docn-body").innerHTML=desprendibleHTML(e,l); ab("ov-docn"); }
+
+// ── PÁGINA GASTOS ──
+function gastoMeses(gx){ const idxAct=idxMesActual(); let d=(gx.desde!=null&&gx.desde!=="")?parseInt(gx.desde):0; let h=(gx.hasta!=null&&gx.hasta!=="")?parseInt(gx.hasta):9; const lo=Math.max(d,0), hi=Math.min(h,idxAct); return Math.max(0,hi-lo+1); }
+function gastoValorAnual(gx){ return (gx.tipo==="mensual") ? (parseInt(gx.valor)||0)*gastoMeses(gx) : (parseInt(gx.valor)||0); }
+function gastosTotales(){ let causado=0,pagado=0,porPagar=0; Object.values(GASTOS_FB||{}).forEach(gx=>{ const v=gastoValorAnual(gx); causado+=v; if(gx.estado==="pagado")pagado+=v; else porPagar+=v; }); return {causado,pagado,porPagar}; }
+function rGastos(){
+  const gt=gastosTotales();
+  g("gastos-kpis").innerHTML=[
+    conKpi("ro","Gasto causado (año)",fmt(gt.causado),"sin nómina"),
+    conKpi("ve","Pagado",fmt(gt.pagado),""),
+    conKpi("am","Por pagar",fmt(gt.porPagar),"cuentas por pagar"),
+    conKpi("corp","Categorías",new Set(Object.values(GASTOS_FB||{}).map(x=>x.categoria)).size,"tipos de gasto")
+  ].join("");
+  const ents=Object.entries(GASTOS_FB||{}).sort((a,b)=>(b[1].fecha||"").localeCompare(a[1].fecha||""));
+  const el=g("gastos-lista");
+  if(!ents.length){ el.innerHTML='<div class="empty" style="padding:30px"><p>Aún no hay gastos. Agrega el arriendo, servicios, proveedores… con "➕ Nuevo gasto". La nómina va en su pestaña.</p></div>'; return; }
+  el.innerHTML='<div style="overflow-x:auto"><table style="min-width:640px"><thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Tipo</th><th>Valor</th><th>Estado</th><th></th></tr></thead><tbody>'+
+    ents.map(([id,gx])=>`<tr>
+      <td style="font-size:11px">${fFechaR(gx.fecha)}</td>
+      <td><b>${gx.desc||""}</b>${gx.proveedor?`<div style="font-size:10px;color:var(--ts)">${gx.proveedor}</div>`:""}</td>
+      <td style="font-size:12px">${gx.categoria||""}</td>
+      <td style="font-size:11px">${gx.tipo==="mensual"?`Mensual ×${gastoMeses(gx)}`:"Único"}</td>
+      <td style="font-weight:700">${fmt(gastoValorAnual(gx))}${gx.tipo==="mensual"?`<div style="font-size:10px;color:var(--ts)">${fmt(gx.valor)}/mes</div>`:""}</td>
+      <td>${gx.estado==="pagado"?'<span class="bg" style="background:#DCFCE7;color:#15803D">Pagado</span>':'<span class="bg" style="background:#FEF3C7;color:#92400E">Por pagar</span>'}</td>
+      <td><div style="display:flex;gap:4px"><button class="btn b-o b-sm" onclick="abrirGasto('${id}')">✏</button><button class="btn b-o b-sm" onclick="borrarGasto('${id}')">🗑</button></div></td>
+    </tr>`).join("")+'</tbody></table></div>';
+}
+function gcTogglePeriodo(){ g("gc-periodo-box").style.display=(g("gc-tipo").value==="mensual")?"grid":"none"; }
+function gcCuenta(){}
+let gastoEditId=null;
+function abrirGasto(id){ gastoEditId=(typeof id==="string")?id:null; const gx=gastoEditId?GASTOS_FB[gastoEditId]:{};
+  let ops=""; for(let m=0;m<10;m++)ops+=`<option value="${m}">${MESES_NM[m+2]}</option>`;
+  g("gc-desde").innerHTML=ops; g("gc-hasta").innerHTML=ops;
+  g("gc-titulo").textContent=gastoEditId?"Editar gasto":"Nuevo gasto";
+  g("gc-desc").value=gx.desc||""; g("gc-cat").value=gx.categoria||"Arriendos"; g("gc-valor").value=gx.valor||"";
+  g("gc-tipo").value=gx.tipo||"mensual"; g("gc-estado").value=gx.estado||"pagado";
+  g("gc-desde").value=(gx.desde!=null?gx.desde:0); g("gc-hasta").value=(gx.hasta!=null?gx.hasta:idxMesActual());
+  g("gc-prov").value=gx.proveedor||""; g("gc-fecha").value=gx.fecha||hoy();
+  gcTogglePeriodo(); ab("ov-gastoc"); }
+function guardarGasto(){ const desc=g("gc-desc").value.trim(), valor=parseInt(g("gc-valor").value)||0;
+  if(!desc||!valor){toast("⚠ Pon concepto y valor");return;}
+  const tipo=g("gc-tipo").value;
+  const campos={desc,categoria:g("gc-cat").value,valor,tipo,estado:g("gc-estado").value,proveedor:g("gc-prov").value.trim()||"",fecha:g("gc-fecha").value||hoy()};
+  if(tipo==="mensual"){ campos.desde=parseInt(g("gc-desde").value)||0; campos.hasta=parseInt(g("gc-hasta").value)||idxMesActual(); }
+  const id=gastoEditId||("gc_"+Date.now());
+  fbdb.ref("rotativo_v1/contabilidad/gastos/"+id).update(campos).then(()=>{c("ov-gastoc");toast("✅ Gasto guardado");gastoEditId=null;}).catch(e=>toast("⚠ "+e.message)); }
+function borrarGasto(id){ if(!GASTOS_FB[id])return; fbdb.ref("rotativo_v1/contabilidad/gastos/"+id).remove().then(()=>toast("🗑 Gasto eliminado")).catch(e=>toast("⚠ "+e.message)); }
+
+// ── ESTADOS FINANCIEROS ──
+function estData(){
+  const cfg=contaCfg(), idxAct=idxMesActual(), dia=new Date().getDate(), diaCorte=parseInt(CFG.diaCorte)||5, mm=mesesTranscurridos();
+  let pensionCausada=0,pensionRecaudada=0,matriculaCausada=0,matriculaRecaudada=0;
+  (DB_CARTERA||[]).forEach(f=>{ const fin=(f.finMes!=null?f.finMes:9);
+    for(let m=(f.inicio||0);m<=Math.min(idxAct,fin);m++){ const venc=(m<idxAct)||(m===idxAct&&dia>=diaCorte); if(!venc)continue;
+      const esp=f.esperadoPorMes?.[m]||0; pensionCausada+=esp; pensionRecaudada+=Math.min(esp,f.pagosMes?.[m]||0); }
+    matriculaCausada+=(f.matricula||0); matriculaRecaudada+=(f.matriculaPagada||0);
+  });
+  const ingresoCausado=pensionCausada+matriculaCausada, ingresoRecaudado=pensionRecaudada+matriculaRecaudada;
+  const gt=gastosTotales(), nom=nomTotales();
+  const gastoNomina=nom.costoMes*mm, gastoOperativo=gt.causado, gastoTotal=gastoNomina+gastoOperativo;
+  const excedente=ingresoCausado-gastoTotal;
+  const cxc=(pensionCausada-pensionRecaudada)+(matriculaCausada-matriculaRecaudada);
+  const lt=(typeof getLoanTotals==="function")?getLoanTotals():null;
+  const prestamosPorCobrar=lt?Math.max(0,(lt.total||0)-(lt.recuperado||0)):0;
+  const financiacion=Object.values(DEUDAS_FB||{}).reduce((s,d)=>s+deudaNetoRecibido(d),0)+Object.values(INVERSIONES_FB||{}).reduce((s,iv)=>s+(iv.capital||0),0);
+  const abonosDeuda=Object.values(DEUDAS_FB||{}).reduce((s,d)=>s+deudaAbonos(d),0);
+  const efectivoInicial=parseInt(cfg.cajaInicial)||0;
+  const flujoOper=ingresoRecaudado-gastoNomina-gt.pagado;
+  const flujoFin=financiacion-abonosDeuda;
+  const flujoInv=-prestamosPorCobrar;
+  const variacion=flujoOper+flujoFin+flujoInv;
+  const efectivo=efectivoInicial+variacion;
+  const activoTotal=efectivo+cxc+prestamosPorCobrar;
+  const prestamosPorPagar=Object.values(DEUDAS_FB||{}).reduce((s,d)=>s+deudaSaldo(d),0);
+  const interesPorPagar=Object.values(DEUDAS_FB||{}).reduce((s,d)=>s+deudaIntAcumulado(d),0);
+  const inversionistasPorPagar=Object.values(INVERSIONES_FB||{}).reduce((s,iv)=>s+invValor(iv),0);
+  const gastosPorPagar=gt.porPagar;
+  const prestacionesPorPagar=nom.prestacionesMes*mm;
+  const pasivoTotal=prestamosPorPagar+interesPorPagar+inversionistasPorPagar+gastosPorPagar+prestacionesPorPagar;
+  const patrimonioTotal=activoTotal-pasivoTotal;
+  const fondoSocial=parseInt(cfg.fondoSocial)||0;
+  const resultadosAcum=patrimonioTotal-fondoSocial-excedente; // plug que cuadra el balance
+  return {mm,pensionCausada,matriculaCausada,ingresoCausado,ingresoRecaudado,gastoNomina,gastoOperativo,gastoTotal,excedente,
+    efectivoInicial,efectivo,cxc,prestamosPorCobrar,activoTotal,
+    prestamosPorPagar,interesPorPagar,inversionistasPorPagar,gastosPorPagar,prestacionesPorPagar,pasivoTotal,
+    patrimonioTotal,fondoSocial,resultadosAcum,flujoOper,flujoFin,flujoInv,variacion,
+    gastoOperativoPagado:gt.pagado,financiacion,abonosDeuda};
+}
+function eRow(lbl,val,cls){ return `<tr><td class="${cls||''}">${lbl}</td><td class="v ${cls||''}">${typeof val==="number"?fmt(val):val}</td></tr>`; }
+function rEstados(){
+  const d=estData(), anio=new Date().getFullYear(), corte=MESES_NM[idxMesActual()+2]||"", exc=d.excedente;
+  // 1) ESTADO DE RESULTADOS
+  const er=`<div class="est">${emisorHd("Estado de Resultados · feb–"+corte+" "+anio+" (informe de gestión)")}
+    <table>
+      ${eRow("INGRESOS DE ACTIVIDADES ORDINARIAS","","sec")}
+      ${eRow("Pensiones (causadas)",d.pensionCausada,"sub")}
+      ${eRow("Matrículas (causadas)",d.matriculaCausada,"sub")}
+      ${eRow("Total ingresos",d.ingresoCausado,"tot")}
+      ${eRow("GASTOS","","sec")}
+      ${eRow("Gastos de personal (nómina + honorarios)",d.gastoNomina,"sub")}
+      ${eRow("Gastos operativos (arriendo, servicios, etc.)",d.gastoOperativo,"sub")}
+      ${eRow("Total gastos",d.gastoTotal,"tot")}
+      ${eRow((exc>=0?"EXCEDENTE":"DÉFICIT")+" DEL EJERCICIO",exc,"grand "+(exc>=0?"pos":"neg"))}
+    </table>
+    <div class="est-note">Ingresos causados (devengados) del período. En una ESAL el resultado se denomina excedente/déficit.</div></div>`;
+  // 2) BALANCE / SITUACIÓN FINANCIERA
+  const bg=`<div class="est">${emisorHd("Estado de Situación Financiera (Balance General) · al "+fFechaR(hoy()))}
+    <table>
+      ${eRow("ACTIVOS","","sec")}
+      ${eRow("Efectivo y equivalentes",d.efectivo,"sub")}
+      ${eRow("Cuentas por cobrar (cartera pensiones y matrícula)",d.cxc,"sub")}
+      ${eRow("Préstamos por cobrar (fondo rotativo)",d.prestamosPorCobrar,"sub")}
+      ${eRow("TOTAL ACTIVOS",d.activoTotal,"tot")}
+      ${eRow("PASIVOS","","sec")}
+      ${eRow("Préstamos por pagar (capital)",d.prestamosPorPagar,"sub")}
+      ${eRow("Intereses por pagar",d.interesPorPagar,"sub")}
+      ${eRow("Inversionistas por pagar (capital + rendimientos)",d.inversionistasPorPagar,"sub")}
+      ${eRow("Cuentas por pagar (gastos)",d.gastosPorPagar,"sub")}
+      ${eRow("Obligaciones laborales (prestaciones)",d.prestacionesPorPagar,"sub")}
+      ${eRow("TOTAL PASIVOS",d.pasivoTotal,"tot")}
+      ${eRow("PATRIMONIO","","sec")}
+      ${eRow("Fondo social (aportes)",d.fondoSocial,"sub")}
+      ${eRow("Resultados acumulados y ajustes",d.resultadosAcum,"sub")}
+      ${eRow((exc>=0?"Excedente":"Déficit")+" del ejercicio",exc,"sub")}
+      ${eRow("TOTAL PATRIMONIO",d.patrimonioTotal,"tot")}
+      ${eRow("PASIVO + PATRIMONIO",d.pasivoTotal+d.patrimonioTotal,"grand")}
+    </table>
+    <div class="est-note">Activo = Pasivo + Patrimonio. Efectivo inicial y fondo social se fijan en "Saldos iniciales".</div></div>`;
+  // 3) FLUJO DE EFECTIVO (directo)
+  const fe=`<div class="est">${emisorHd("Estado de Flujos de Efectivo (método directo) · feb–"+corte+" "+anio)}
+    <table>
+      ${eRow("ACTIVIDADES DE OPERACIÓN","","sec")}
+      ${eRow("Recaudo de pensiones y matrículas",d.ingresoRecaudado,"sub")}
+      ${eRow("Pago de nómina",-d.gastoNomina,"sub")}
+      ${eRow("Pago de gastos operativos",-d.gastoOperativoPagado,"sub")}
+      ${eRow("Flujo de operación",d.flujoOper,"tot")}
+      ${eRow("ACTIVIDADES DE FINANCIACIÓN","","sec")}
+      ${eRow("Préstamos e inversiones recibidos",d.financiacion,"sub")}
+      ${eRow("Abonos a préstamos",-d.abonosDeuda,"sub")}
+      ${eRow("Flujo de financiación",d.flujoFin,"tot")}
+      ${eRow("ACTIVIDADES DE INVERSIÓN","","sec")}
+      ${eRow("Préstamos otorgados a familias (fondo)",d.flujoInv,"sub")}
+      ${eRow("Flujo de inversión",d.flujoInv,"tot")}
+      ${eRow("VARIACIÓN DE EFECTIVO",d.variacion,"tot "+(d.variacion>=0?"pos":"neg"))}
+      ${eRow("Efectivo al inicio",d.efectivoInicial,"sub")}
+      ${eRow("EFECTIVO AL CIERRE",d.efectivo,"grand")}
+    </table></div>`;
+  // 4) CAMBIOS EN EL PATRIMONIO
+  const cp=`<div class="est">${emisorHd("Estado de Cambios en el Patrimonio · feb–"+corte+" "+anio)}
+    <table>
+      ${eRow("Saldo inicial del patrimonio",d.patrimonioTotal-exc,"sub")}
+      ${eRow((exc>=0?"(+) Excedente":"(−) Déficit")+" del ejercicio",exc,"sub "+(exc>=0?"pos":"neg"))}
+      ${eRow("SALDO FINAL DEL PATRIMONIO",d.patrimonioTotal,"grand")}
+    </table>
+    <div class="est-note">CORPOSEPI® · ESAL. Informe de gestión generado por el sistema. Los estados financieros oficiales, con notas, deben ser certificados por el contador público y el representante legal.</div></div>`;
+  g("est-body").innerHTML=er+bg+fe+cp;
+}
+function abrirEstCfg(){ const c=contaCfg(); g("ec-caja").value=c.cajaInicial||""; g("ec-fondo").value=c.fondoSocial||""; g("ec-acum").value=c.resultadosAcum||""; ab("ov-estcfg"); }
+function guardarEstCfg(){ const campos={cajaInicial:parseInt(g("ec-caja").value)||0,fondoSocial:parseInt(g("ec-fondo").value)||0,resultadosAcum:parseInt(g("ec-acum").value)||0}; fbdb.ref("rotativo_v1/contabilidad/config").update(campos).then(()=>{c("ov-estcfg");toast("✅ Saldos iniciales guardados");}).catch(e=>toast("⚠ "+e.message)); }
+
 function refrescarDesdeFirebase(){
   reconstruirCartera();
   actualizarBadges();
   rDashboard();
+  if (g("pg-estados")?.classList.contains("on")) rEstados();
+  if (g("pg-gastos")?.classList.contains("on")) rGastos();
+  if (g("pg-nomina")?.classList.contains("on")) rNomina();
   if (g("pg-prestamo")?.classList.contains("on")) rCobertura();
   if (g("pg-bolsillo")?.classList.contains("on")) rBolsillo();
   if (g("pg-compromisos")?.classList.contains("on")) { rCuentas(); rCompromisos(); }
@@ -2779,6 +3271,10 @@ fbdb.ref('rotativo_v1/presupuesto').on('value', snap => {
   PRESUP_FB = snap.val() || {};
   if (g("pg-presupuesto")?.classList.contains("on")) rPresupuesto();
 });
+// Contabilidad (config, empleados, gastos)
+fbdb.ref('rotativo_v1/contabilidad/config').on('value', snap => { CONTA_CFG = snap.val() || {}; if (g("pg-estados")?.classList.contains("on")) rEstados(); if (g("pg-nomina")?.classList.contains("on")) rNomina(); });
+fbdb.ref('rotativo_v1/contabilidad/empleados').on('value', snap => { EMPLEADOS_FB = snap.val() || {}; if (g("pg-nomina")?.classList.contains("on")) rNomina(); if (g("pg-estados")?.classList.contains("on")) rEstados(); });
+fbdb.ref('rotativo_v1/contabilidad/gastos').on('value', snap => { GASTOS_FB = snap.val() || {}; if (g("pg-gastos")?.classList.contains("on")) rGastos(); if (g("pg-estados")?.classList.contains("on")) rEstados(); });
 
 // Botón "Sincronizar": con Firebase ya es en vivo; solo confirma y re-renderiza
 function sincronizarCartera() {
