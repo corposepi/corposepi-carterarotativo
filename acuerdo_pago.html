@@ -96,6 +96,15 @@ function render(){
     return;
   }
 
+  // Formato vencido: el plazo es el último día del mes; pasada esa fecha no se puede crear el acuerdo
+  if(P.fechaLimite && hoyISO() > P.fechaLimite){
+    g("app").innerHTML=`<div class="ok-box"><div class="ei">⌛</div><h2>Este formato ya venció</h2>
+      <p class="aviso">Familia <b>${P.nombre||""}</b>, el plazo de este acuerdo era hasta el <b>${fFecha(P.fechaLimite)}</b> (último día de ${P.mesActual||"ese mes"}) y ya pasó.</p>
+      <div class="espera" style="text-align:left;margin-top:12px">📌 La prioridad es pagar <b>la pensión del mes en curso</b>. Por favor solicite a CORPOSEPI® un <b>formato nuevo del mes actual</b> para hacer su acuerdo.</div>
+      <p class="aviso" style="margin-top:10px">📞 320 833 1293</p></div>`;
+    return;
+  }
+
   const total=P.total||0;
   const desg=(P.desglose||[]);
   const fl=P.fechaLimite||"";
@@ -221,6 +230,7 @@ function validar(){
   return {ok:true,cuotas:cu.map(c=>({fecha:c.fecha,monto:parseInt(c.monto)})).sort((a,b)=>a.fecha<b.fecha?-1:1)};
 }
 function enviar(){
+  if(P.fechaLimite && hoyISO()>P.fechaLimite){ alert("⚠ Este formato venció el "+fFecha(P.fechaLimite)+". Solicite uno nuevo a CORPOSEPI®."); render(); return; }
   const v=validar(); if(!v.ok){ alert("⚠ "+v.m); return; }
   g("enviar").disabled=true; g("enviar").textContent="Enviando…";
   fbdb.ref("propuestas_acuerdo/"+CC).update({
@@ -234,6 +244,7 @@ function enviar(){
   }).catch(e=>{ alert("❌ No se pudo enviar: "+e.message); g("enviar").disabled=false; g("enviar").textContent="📲 Enviar mi propuesta"; });
 }
 function aceptarContra(){
+  if(P.fechaLimite && hoyISO()>P.fechaLimite){ alert("⚠ Este formato venció el "+fFecha(P.fechaLimite)+". Solicite uno nuevo a CORPOSEPI®."); render(); return; }
   const cu=P.contrapropuesta?.cuotas||[];
   fbdb.ref("propuestas_acuerdo/"+CC).update({
     estado:"propuesta",
