@@ -418,6 +418,7 @@ tr:hover td{background:#f7faff}
         <div style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn b-p b-sm" onclick="abrirFacCfg()">⚙️ Datos y numeración</button>
           <button class="btn b-v b-sm" onclick="generarFacturas()">🧾 Emitir y numerar</button>
+          <button class="btn b-w b-sm" onclick="abrirDian()">📋 Traslado a DIAN</button>
           <button class="btn b-o b-sm" onclick="abrirFacOtro()">➕ Otro concepto</button>
         </div>
       </div>
@@ -809,6 +810,20 @@ tr:hover td{background:#f7faff}
     <button class="btn b-o" onclick="c('ov-facotro')">Cancelar</button>
     <button class="btn b-v" onclick="guardarFacOtro()">✓ Crear factura</button>
   </div>
+</div>
+</div>
+
+<!-- MODAL: TRASLADO A DIAN (solución gratuita) -->
+<div class="ov" id="ov-dian">
+<div class="modal" style="max-width:660px">
+  <div class="mo-h"><h2>📋 Traslado a la DIAN (este mes)</h2><button class="mo-x" onclick="c('ov-dian')">✕</button></div>
+  <div class="mo-b">
+    <div style="font-size:12px;color:var(--ts);margin-bottom:8px">Copia cada factura al portal gratuito de la DIAN y marca "✓ Ya en DIAN" para llevar la cuenta. Servicio educativo <b>excluido de IVA</b>.</div>
+    <div id="dian-prog" style="font-weight:800;color:var(--az);margin-bottom:8px"></div>
+    <button class="btn b-o b-sm" onclick="copiarDianTodo()" style="margin-bottom:10px">📋 Copiar lista completa</button>
+    <div id="dian-lista"></div>
+  </div>
+  <div class="mo-f"><button class="btn b-o" onclick="c('ov-dian')">Cerrar</button></div>
 </div>
 </div>
 
@@ -1930,7 +1945,7 @@ function rAcuerdos(){
 }
 
 // ═══════════ FACTURACIÓN (estilo Siigo · interno) ═══════════
-let FACT_CFG={}, FACTURAS={}, RECIBOS={};
+let FACT_CFG={}, FACTURAS={}, RECIBOS={}, DIAN_FB={};
 function facKpi(cls,l,v,s){ return `<div class="kpi ${cls}"><div class="kpi-l">${l}</div><div class="kpi-v">${v}</div><div class="kpi-s">${s||""}</div></div>`; }
 
 // Calcula TODAS las facturas/recibos en vivo desde las familias y pagos reales (sin escribir a Firebase)
@@ -2144,6 +2159,34 @@ function anularFactura(id){
   fbdb.ref().update(updates).then(()=>toast("🚫 Factura anulada")).catch(e=>toast("❌ "+e.message));
 }
 
+// ═══════════ TRASLADO A LA DIAN (solución gratuita) ═══════════
+function dianMesLista(){
+  const anio=new Date().getFullYear(), ym=`${anio}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
+  return Object.values(facAll()).filter(x=> x.estado!=="borrador" && x.estado!=="anulada" && (
+    x.tipo==="pension" ? x.mesKey===ym :
+    x.tipo==="matricula" ? !DIAN_FB[x.id] :
+    ((x.fechaEmision||"").slice(0,7)===ym || !DIAN_FB[x.id])
+  )).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+}
+function dianTexto(x){ return `${x.nombre} | CC/NIT ${x.cc} | ${x.concepto} | ${fmt(x.valor)} (excluido de IVA)`; }
+function abrirDian(){ rDian(); ab("ov-dian"); }
+function rDian(){
+  const lista=dianMesLista(), done=lista.filter(x=>DIAN_FB[x.id]).length;
+  g("dian-prog").textContent=`✓ ${done} de ${lista.length} emitidas en la DIAN este mes`;
+  const el=g("dian-lista");
+  if(!lista.length){ el.innerHTML='<div class="empty" style="padding:24px"><p>No hay facturas del mes para trasladar.</p></div>'; return; }
+  el.innerHTML=lista.map(x=>{ const d=!!DIAN_FB[x.id];
+    return `<div style="display:flex;align-items:center;gap:8px;border:1px solid var(--gb);border-left:4px solid ${d?'#16A34A':'#CBD5E1'};border-radius:9px;padding:9px;margin-bottom:7px;${d?'background:#F0FDF4':''}">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap"><input type="checkbox" ${d?'checked':''} onchange="toggleDian('${x.id}',this.checked)"> <span style="font-size:11px;font-weight:700;color:${d?'#15803D':'var(--ts)'}">${d?'En DIAN':'Pendiente'}</span></label>
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px">${x.nombre}</div><div style="font-size:11px;color:var(--ts)">CC/NIT ${x.cc} · ${x.concepto} · <b>${fmt(x.valor)}</b></div></div>
+      <button class="ab a-ed" onclick="copiarDian('${x.id}')" title="Copiar datos">📋</button>
+    </div>`;
+  }).join("");
+}
+function toggleDian(id,ch){ fbdb.ref("rotativo_v1/facturacion/dian/"+id).set(ch?hoy():null).then(()=>{ if(ch)toast("✅ Marcada en DIAN"); }).catch(e=>toast("❌ "+e.message)); }
+function copiarDian(id){ const x=getFactura(id); if(!x)return; navigator.clipboard.writeText(dianTexto(x)).then(()=>toast("📋 Copiado")).catch(()=>toast("⚠ No se pudo copiar")); }
+function copiarDianTodo(){ const txt=dianMesLista().map(dianTexto).join("\n"); navigator.clipboard.writeText(txt).then(()=>toast("📋 Lista copiada")).catch(()=>toast("⚠ No se pudo copiar")); }
+
 // ═══════════ ABRIR MÓDULO ROTATIVO ═══════════
 function abrirRotativo(){
   window.open('CORPOSEPI_Flujo_Rotativo.html','_blank');
@@ -2179,6 +2222,7 @@ fbdb.ref('propuestas_acuerdo').on('value',snap=>{ PROPUESTAS=snap.val()||{}; if(
 fbdb.ref('rotativo_v1/facturacion/config').on('value',s=>{ FACT_CFG=s.val()||{}; });
 fbdb.ref('rotativo_v1/facturacion/facturas').on('value',s=>{ FACTURAS=s.val()||{}; if(document.querySelector('.pg.on')?.id==='pg-factura')rFacturacion(); });
 fbdb.ref('rotativo_v1/facturacion/recibos').on('value',s=>{ RECIBOS=s.val()||{}; if(document.querySelector('.pg.on')?.id==='pg-factura')rFacturacion(); });
+fbdb.ref('rotativo_v1/facturacion/dian').on('value',s=>{ DIAN_FB=s.val()||{}; if(g('ov-dian')?.classList.contains('on'))rDian(); });
 fbdb.ref('rotativo_v1/obligaciones').on('value',snap=>{ OBLIGACIONES=snap.val()||{}; });
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}</script>
