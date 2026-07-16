@@ -747,6 +747,7 @@ tr:hover td{background:#f7faff}
   </div>
   <div class="mo-f">
     <button class="btn b-o" onclick="c('ov-acu')">Cancelar</button>
+    <button class="ab a-dl" onclick="borrarAcuerdoFamilia()" title="Eliminar el acuerdo de esta familia">🗑 Eliminar acuerdo</button>
     <button class="btn b-o" onclick="enviarContrapropuesta()" title="Enviar estas cuotas al papá para que las confirme">↩️ Contrapropuesta</button>
     <button class="btn b-v" onclick="guardarAcuerdo(false)">✓ Guardar</button>
     <button class="btn b-w" onclick="guardarAcuerdo(true)">📲 Guardar y enviar confirmación</button>
@@ -1918,8 +1919,22 @@ function enviarContrapropuesta(){
     .catch(e=>toast("❌ "+e.message));
 }
 function descartarPropuesta(cc){
-  if(!confirm("¿Descartar esta propuesta/formato de la familia?")) return;
-  fbdb.ref("propuestas_acuerdo/"+cc).remove().then(()=>toast("🗑 Descartado")).catch(e=>toast("❌ "+e.message));
+  const p=PROPUESTAS[cc]||{};
+  if(!confirm("¿Eliminar el formato / propuesta de "+(p.nombre||cc)+"?")) return;
+  const updates={};
+  updates["propuestas_acuerdo/"+cc]=null;
+  if(ACUERDOS[cc] && confirm("Esta familia también tiene un ACUERDO DE PAGO guardado (las cuotas).\n¿Eliminarlo también?")) updates["rotativo_v1/acuerdos/"+cc]=null;
+  fbdb.ref().update(updates).then(()=>toast("🗑 Eliminado")).catch(e=>toast("❌ "+e.message));
+}
+// Borra el acuerdo de pago guardado de la familia abierta en el modal
+function borrarAcuerdoFamilia(){
+  const f=DB[acuIdx]; if(!f){toast("⚠ Abra una familia primero");return;}
+  if(!ACUERDOS[f.cc] && !PROPUESTAS[f.cc]){toast("Esta familia no tiene acuerdo guardado");return;}
+  if(!confirm("¿Eliminar el acuerdo de pago de "+((f.nombres+" "+(f.apellidos||"")).trim())+"?")) return;
+  const updates={};
+  if(ACUERDOS[f.cc]) updates["rotativo_v1/acuerdos/"+f.cc]=null;
+  if(PROPUESTAS[f.cc] && confirm("¿También eliminar el formato / propuesta en línea de esta familia?")) updates["propuestas_acuerdo/"+f.cc]=null;
+  fbdb.ref().update(updates).then(()=>{ toast("🗑 Acuerdo eliminado"); acuPropCc=null; c("ov-acu"); }).catch(e=>toast("❌ "+e.message));
 }
 const AC_EST_LBL={enviado:"📤 Enviado",propuesta:"📨 Propuso",contrapropuesta:"↩️ Contra",aceptado:"✅ Aceptado",incumplido:"⛔ Incumplido",rechazado:"✕ Rechazado"};
 function rAcuerdos(){
@@ -1960,12 +1975,15 @@ function rAcuerdos(){
     return `<div style="border-bottom:1px solid var(--gb);padding:9px 0">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>${p.nombre}</b><span style="color:#16A34A;font-weight:800">${fmt(tot)}</span></div>
       <div style="font-size:12px;color:var(--ts);margin:3px 0">${cu.map(c=>`${fFecha(c.fecha)}: ${fmt(c.monto)}`).join(" · ")||"—"}</div>
-      <button class="ab a-dl" onclick="marcarIncumplido('${cc}')" title="No pagó el día pactado → restringir servicio">⚠️ No cumplió</button>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="ab a-dl" onclick="marcarIncumplido('${cc}')" title="No pagó el día pactado → restringir servicio">⚠️ No cumplió</button>
+        <button class="ab a-dl" onclick="descartarPropuesta('${cc}')" title="Eliminar este acuerdo">🗑 Eliminar</button>
+      </div>
     </div>`;
   }).join("");
   const htmlIncump = incump.map(([cc,p])=>`<div style="border-bottom:1px solid var(--gb);padding:9px 0;background:#FEF2F2;border-radius:8px;margin-bottom:4px;padding-left:8px;padding-right:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>${p.nombre}</b><span class="bg" style="background:#FEE2E2;color:#B91C1C">⛔ Incumplido · servicio restringido</span></div>
-      <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap"><button class="ab a-wa" onclick="abrirIncumplidoWA('${cc}')">💬 Reenviar aviso</button><button class="ab a-pg" onclick="reactivarAcuerdo('${cc}')">✓ Reactivar (ya pagó)</button></div>
+      <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap"><button class="ab a-wa" onclick="abrirIncumplidoWA('${cc}')">💬 Reenviar aviso</button><button class="ab a-pg" onclick="reactivarAcuerdo('${cc}')">✓ Reactivar (ya pagó)</button><button class="ab a-dl" onclick="descartarPropuesta('${cc}')" title="Eliminar este acuerdo">🗑 Eliminar</button></div>
     </div>`).join("");
   g("ac-listos").innerHTML = (listos.length||incump.length) ? (htmlListos+htmlIncump) : '<div style="padding:14px;color:var(--ts);font-size:13px">Aún no hay acuerdos aceptados.</div>';
   // Enviar formato (familias con deuda)
