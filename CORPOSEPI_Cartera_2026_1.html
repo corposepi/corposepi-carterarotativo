@@ -1877,19 +1877,43 @@ function guardarAcuerdo(enviar){
   if(!cuotas.length){toast("⚠ Agrega al menos una cuota con monto y fecha");return;}
   const acu={creado:hoy(),nota:g("acu-nota").value||"",cuotas};
   fbdb.ref('rotativo_v1/acuerdos/'+f.cc).set(acu)
+    .then(()=>sincronizarSnapshotAcuerdo(f,acu))   // deja el acuerdo visible en 🤝 Acuerdos y con link para el papá
     .then(()=>{
-      if(acuPropCc){ fbdb.ref('propuestas_acuerdo/'+acuPropCc).update({estado:'aceptado', acordado:{cuotas:acu.cuotas.map(x=>({fecha:x.fecha,monto:x.monto})), fecha:hoy()}}); acuPropCc=null; }
+      acuPropCc=null;
       toast("✅ Acuerdo guardado en la nube ☁️");
       if(enviar) enviarAcuerdoWA(f.cc,acu); else c("ov-acu");
     })
     .catch(e=>toast("❌ "+e.message));
+}
+// Deja el acuerdo (venga de la ficha del padre o del formato) visible en 🤝 Acuerdos y con link para el papá
+function sincronizarSnapshotAcuerdo(f,acu){
+  const cc=f.cc, p=PROPUESTAS[cc]||{};
+  const now=new Date(), fin=new Date(now.getFullYear(),now.getMonth()+1,0);
+  const fechaLimite=fin.getFullYear()+"-"+String(fin.getMonth()+1).padStart(2,"0")+"-"+String(fin.getDate()).padStart(2,"0");
+  return fbdb.ref("propuestas_acuerdo/"+cc).update({
+    estado:"aceptado",
+    nombre:(f.nombres+" "+(f.apellidos||"")).trim(),
+    tel:f.celular||"",
+    estudiantes:(f.estudiantes||[]).map(e=>e.nombre),
+    total:p.total||f.deuda||0,
+    mesActual:p.mesActual||mesLabel(mesKeyHoy()),
+    fechaLimite:p.fechaLimite||fechaLimite,
+    fechaEnvio:p.fechaEnvio||hoy(),
+    acordado:{cuotas:(acu.cuotas||[]).map(x=>({fecha:x.fecha,monto:x.monto})), fecha:hoy()}
+  });
+}
+// Sincroniza y envía un acuerdo creado desde la ficha del padre (genera su link)
+function enviarAcuerdoLink(cc){
+  const f=DB.find(x=>String(x.cc)===String(cc)), a=ACUERDOS[cc];
+  if(!f||!a){toast("⚠ Acuerdo no encontrado");return;}
+  sincronizarSnapshotAcuerdo(f,a).then(()=>enviarAcuerdoWA(cc,a)).catch(e=>toast("❌ "+e.message));
 }
 function enviarAcuerdoWA(cc,acu){
   const f=DB.find(x=>String(x.cc)===String(cc)); if(!f)return;
   const num=(f.celular||"").replace(/\D/g,"");
   if(!num){toast("⚠ Esta familia no tiene número de celular");c("ov-acu");return;}
   const tel=num.startsWith("57")?num:"57"+num;
-  const msg=encodeURIComponent(WM.acuerdoConf(f,acu));
+  const msg=encodeURIComponent(WM.acuerdoConf(f,acu)+"\n\n🔗 Puede consultar su acuerdo aquí:\n"+formatoLink(cc));
   f.historial=f.historial||[];f.historial.push({tipo:"wa",txt:"Confirmación de acuerdo de pago",fecha:hoy()});
   c("ov-acu");
   window.open(`https://wa.me/${tel}?text=${msg}`,"_blank");
@@ -2103,7 +2127,21 @@ function rAcuerdos(){
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>${p.nombre}</b><span class="bg" style="background:#FEE2E2;color:#B91C1C">⛔ Incumplido · servicio restringido</span></div>
       <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap"><button class="ab a-wa" onclick="abrirIncumplidoWA('${cc}')">💬 Reenviar aviso</button><button class="ab a-pg" onclick="reactivarAcuerdo('${cc}')">✓ Reactivar (ya pagó)</button><button class="ab a-dl" onclick="descartarPropuesta('${cc}')" title="Eliminar este acuerdo">🗑 Eliminar</button></div>
     </div>`).join("");
-  g("ac-listos").innerHTML = (listos.length||incump.length) ? (htmlListos+htmlIncump) : '<div style="padding:14px;color:var(--ts);font-size:13px">Aún no hay acuerdos aceptados.</div>';
+  // Acuerdos creados desde la ficha del padre (existen en ACUERDOS pero aún sin formato/link)
+  const manuales = Object.entries(ACUERDOS).filter(([cc,a])=>!PROPUESTAS[cc] && (a.cuotas||[]).length);
+  const htmlManual = manuales.map(([cc,a])=>{
+    const cu=a.cuotas||[], tot=cu.reduce((s,c)=>s+(parseInt(c.monto)||0),0);
+    return `<div style="border-bottom:1px solid var(--gb);padding:9px 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <div><b>${acNombre(cc)}</b> <span class="bg" style="background:#EEF2FF;color:#3730A3">creado desde la ficha</span></div>
+        <span style="color:#16A34A;font-weight:800">${fmt(tot)}</span></div>
+      <div style="font-size:12px;color:var(--ts);margin:3px 0">${cu.map(c=>`${fFecha(c.fecha)}: ${fmt(c.monto)}`).join(" · ")||"—"}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="ab a-wa" onclick="enviarAcuerdoLink('${cc}')" title="Genera el link y envía la confirmación">📲 Enviar acuerdo + link</button>
+        <button class="ab a-dl" onclick="descartarPropuesta('${cc}')" title="Eliminar este acuerdo">🗑 Eliminar</button>
+      </div></div>`;
+  }).join("");
+  g("ac-listos").innerHTML = (listos.length||incump.length||manuales.length) ? (htmlListos+htmlManual+htmlIncump) : '<div style="padding:14px;color:var(--ts);font-size:13px">Aún no hay acuerdos aceptados.</div>';
   // Enviar formato (familias con deuda)
   const conDeuda=DB.filter(f=>(f.deuda||0)>0).sort((a,b)=>(b.deuda||0)-(a.deuda||0));
   g("ac-enviar").innerHTML = conDeuda.length ? '<table><thead><tr><th>Familia</th><th>Deuda</th><th>Estado</th><th></th></tr></thead><tbody>'+conDeuda.map(f=>{
