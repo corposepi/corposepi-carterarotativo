@@ -594,7 +594,7 @@ tr:hover td{background:#f7faff}
     </div>
     <div class="fg c2" style="margin-top:9px">
       <div class="ff"><label>Medio de pago</label><select id="pg-m"><option>Caja Social</option><option>Bold llave</option><option>Bold tarjeta de crédito</option><option>Efectivo</option></select></div>
-      <div class="ff"><label>Período que cubre</label><select id="pg-per"><option>Mayo 2026</option><option>Abril 2026</option><option>Marzo 2026</option><option>Febrero 2026</option><option>Enero 2026</option><option>Matrícula 2026</option><option>Otros meses 2026</option></select></div>
+      <div class="ff"><label>Aplicar a</label><select id="pg-per"></select><div style="font-size:10px;color:var(--ts);margin-top:3px">Las pensiones se abonan a la deuda más antigua primero.</div></div>
     </div>
     <div class="ff" style="margin-top:9px"><label>Referencia / Observaciones</label><textarea id="pg-ob" rows="2" placeholder="Número de transferencia, notas…"></textarea></div>
     <div style="background:var(--gf);border-radius:9px;padding:11px;margin-top:11px;font-size:12px">
@@ -605,6 +605,7 @@ tr:hover td{background:#f7faff}
   </div>
   <div class="mo-f">
     <button class="btn b-o" onclick="c('ov-pg')">Cancelar</button>
+    <button class="btn b-o" onclick="abrirCorreccion()" title="Corregir pagos ya registrados">✏️ Corregir pagos</button>
     <button class="btn b-v" onclick="confPago()">✓ Registrar y enviar paz y salvo WA</button>
   </div>
 </div>
@@ -751,6 +752,26 @@ tr:hover td{background:#f7faff}
     <button class="btn b-o" onclick="enviarContrapropuesta()" title="Enviar estas cuotas al papá para que las confirme">↩️ Contrapropuesta</button>
     <button class="btn b-v" onclick="guardarAcuerdo(false)">✓ Guardar</button>
     <button class="btn b-w" onclick="guardarAcuerdo(true)">📲 Guardar y enviar confirmación</button>
+  </div>
+</div>
+</div>
+
+<!-- MODAL: CORREGIR PAGOS REGISTRADOS -->
+<div class="ov" id="ov-corr">
+<div class="modal">
+  <div class="mo-h"><h2>✏️ Corregir pagos registrados</h2><button class="mo-x" onclick="c('ov-corr')">✕</button></div>
+  <div class="mo-b">
+    <div style="font-weight:700;color:var(--az);font-size:15px" id="corr-n">—</div>
+    <div class="alert-b" style="background:#FFF7E6;border-color:#FCD34D;margin:10px 0;padding:10px">
+      <span style="font-size:18px">⚠️</span>
+      <p style="color:#92400E;font-size:12px">Escribe el valor <b>realmente pagado</b> en cada mes. Sirve para corregir errores de digitación (por ejemplo, un pago cargado dos veces).</p>
+    </div>
+    <div id="corr-lista"></div>
+    <div id="corr-tot" style="font-weight:800;color:var(--az);margin-top:11px;font-size:13px"></div>
+  </div>
+  <div class="mo-f">
+    <button class="btn b-o" onclick="c('ov-corr')">Cancelar</button>
+    <button class="btn b-v" onclick="guardarCorreccion()">✓ Guardar correcciones</button>
   </div>
 </div>
 </div>
@@ -1476,13 +1497,9 @@ function abrirPago(idx){
   g("pg-d").textContent=(f.estudiantes||[]).map(e=>e.nombre+" "+e.grado).join(", ");
   g("pg-deu").textContent=f.estado==="mora"?fmt(f.deuda||0):"Familia al día — sin saldo pendiente";
   g("pg-deu").style.color=f.estado==="mora"?"var(--ro)":"var(--ve)";
-  // Opciones de período: año escolar feb→dic, con el mes de corte actual de primero
+  // Aplicar a: pensiones (imputa a la deuda más antigua) o matrícula
   const año=(CFG.mesCorte||mesKeyHoy()).split("-")[0];
-  const keyCorte=CFG.mesCorte;
-  const ops=[];
-  for(let m=12;m>=1;m--){const k=año+"-"+String(m).padStart(2,"0");ops.push(`<option value="${MESES_L[m-1]} ${año}"${k===keyCorte?" selected":""}>${MESES_L[m-1]} ${año}${k===keyCorte?" (corte actual)":""}</option>`);}
-  ops.push('<option value="Matrícula 2026">Matrícula '+año+'</option>');
-  g("pg-per").innerHTML=ops.join("");
+  g("pg-per").innerHTML='<option value="Pensiones">Pensiones — deuda más antigua primero</option><option value="Matrícula '+año+'">Matrícula '+año+'</option>';
   g("pg-v").value=f.estado==="mora"?(f.deuda||""):(f.pension||"");g("pg-f").value=hoy();g("pg-ob").value="";
   calcV();ab("ov-pg");
 }
@@ -1514,14 +1531,66 @@ function confPago(){
       .catch(e=>toast("⚠ Error: "+e.message));
     return;
   }
-  // Pago de pensión de un mes (feb=idx0 … nov=idx9) → se acredita al primer estudiante
-  const key=labelToKey(label)||CFG.mesCorte;        // "2026-06"
-  const mNum=parseInt((key||"").split("-")[1]);     // 6
-  const idx=mNum-2;                                  // planilla Feb=0
-  if(idx<0||idx>9){toast("⚠ Las pensiones van de febrero a noviembre");return;}
-  const prev=parseInt(PAGOS["f_"+cc]?.pensiones?.[idx]?.[0])||0;
-  fbdb.ref(`pagos_v3/f_${cc}/pensiones/${idx}/0`).set(prev+val)
-    .then(()=>{c("ov-pg");toast("✅ Pago en la nube ☁️ "+fmt(val)+" — "+label);})
+  // Pensiones: el pago se imputa a la deuda MÁS ANTIGUA primero y el excedente pasa a los meses siguientes
+  const finMes=(f.finMes!=null?f.finMes:9), pgs=PAGOS["f_"+cc]?.pensiones||{};
+  let resto=val; const updates={}, cubiertos=[];
+  for(let m=(f.inicio||0); m<=finMes && resto>0; m++){
+    const esp=f.esperadoPorMes?.[m]||0; if(esp<=0) continue;
+    const gap=Math.max(0, esp-(f.pagosMes?.[m]||0)); if(gap<=0) continue;
+    const aplica=Math.min(gap, resto);
+    const prev0=parseInt(pgs?.[m]?.[0])||0;
+    updates[`pagos_v3/f_${cc}/pensiones/${m}/0`]=prev0+aplica;
+    cubiertos.push(MESES_L[m+1]+" "+fmt(aplica));
+    resto-=aplica;
+  }
+  if(!Object.keys(updates).length){toast("⚠ Esta familia no tiene pensiones pendientes");return;}
+  fbdb.ref().update(updates)
+    .then(()=>{c("ov-pg");toast("✅ Pago aplicado ☁️ "+fmt(val-resto)+" → "+cubiertos.join(" · ")+(resto>0?" · sobran "+fmt(resto):""));})
+    .catch(e=>toast("⚠ Error: "+e.message));
+}
+
+// ═══════════ CORREGIR PAGOS REGISTRADOS ═══════════
+let corrIdx=-1, corrVals={};
+function abrirCorreccion(){
+  if(pagoI<0){toast("⚠ Abre el pago de una familia primero");return;}
+  corrIdx=pagoI; const f=DB[corrIdx];
+  g("corr-n").textContent=(f.nombres+" "+(f.apellidos||"")).trim();
+  corrVals={};
+  const finMes=(f.finMes!=null?f.finMes:9);
+  let html='<table><thead><tr><th>Mes</th><th>Esperado</th><th>Pagado (editable)</th></tr></thead><tbody>';
+  for(let m=(f.inicio||0); m<=finMes; m++){
+    const esp=f.esperadoPorMes?.[m]||0; if(esp<=0) continue;
+    const pag=f.pagosMes?.[m]||0; corrVals[m]=pag;
+    html+=`<tr><td style="font-weight:600">${MESES_L[m+1]}</td><td style="color:var(--ts)">${fmt(esp)}</td>
+      <td><input type="number" value="${pag||""}" placeholder="0" style="width:130px;padding:6px;border:1px solid var(--gb);border-radius:6px;font-size:13px" oninput="setCorr(${m},this.value)"></td></tr>`;
+  }
+  html+='</tbody></table>';
+  g("corr-lista").innerHTML=html;
+  corrTot();
+  c("ov-pg"); ab("ov-corr");
+}
+function setCorr(m,v){ corrVals[m]=parseInt(v)||0; corrTot(); }
+function corrTot(){
+  const f=DB[corrIdx]; if(!f)return;
+  const pagado=Object.values(corrVals).reduce((s,v)=>s+(parseInt(v)||0),0);
+  const idxAct=idxMesActual(), dia=new Date().getDate(), diaCorte=parseInt(CFG.diaCorte)||5, finMes=(f.finMes!=null?f.finMes:9);
+  let deuda=0;
+  for(let m=(f.inicio||0); m<=Math.min(idxAct,finMes); m++){
+    const vencido=(m<idxAct)||(m===idxAct&&dia>=diaCorte); if(!vencido) continue;
+    deuda+=Math.max(0,(f.esperadoPorMes?.[m]||0)-(parseInt(corrVals[m])||0));
+  }
+  g("corr-tot").innerHTML=`Total pagado: ${fmt(pagado)} &nbsp;·&nbsp; <span style="color:var(--ro)">Quedaría debiendo: ${fmt(deuda)}</span>`;
+}
+function guardarCorreccion(){
+  const f=DB[corrIdx]; if(!f){toast("⚠ Familia no encontrada");return;}
+  const cc=f.cc, pgs=PAGOS["f_"+cc]?.pensiones||{}, updates={};
+  Object.entries(corrVals).forEach(([m,v])=>{
+    updates[`pagos_v3/f_${cc}/pensiones/${m}/0`]=parseInt(v)||0;
+    const cell=pgs?.[m];
+    if(cell&&typeof cell==="object") Object.keys(cell).forEach(hi=>{ if(hi!=="0") updates[`pagos_v3/f_${cc}/pensiones/${m}/${hi}`]=null; });
+  });
+  fbdb.ref().update(updates)
+    .then(()=>{c("ov-corr");toast("✅ Pagos corregidos ☁️");})
     .catch(e=>toast("⚠ Error: "+e.message));
 }
 
