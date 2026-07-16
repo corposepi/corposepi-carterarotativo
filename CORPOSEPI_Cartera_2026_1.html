@@ -2020,9 +2020,8 @@ function recordarCuotaWA(cc,i){
   const num=((PROPUESTAS[cc]?.tel||f?.celular||"")+"").replace(/\D/g,"");
   if(!num){toast("⚠ Esta familia no tiene celular");return;}
   const tel=num.startsWith("57")?num:"57"+num;
-  const compromiso = c.oblNombre ? `*${c.oblNombre}*` : "*el pago de salarios de docentes, arriendo y proveedores*";
   const esHoy = c.fecha===hoy();
-  const msg=`Cordial saludo, familia *${acNombre(cc)}* 🙏\n\n${esHoy?`Le recordamos que *hoy ${fFecha(c.fecha)}* vence`:`Le informamos que el *${fFecha(c.fecha)}* venció`} la cuota de su *acuerdo de pago* con CORPOSEPI®:\n\n💵 Valor: *${fmt(c.monto)}*\n\n📌 *Importante:* este pago ya está *comprometido* para cubrir ${compromiso}. Por eso su cumplimiento puntual es indispensable para la operación de la corporación.\n\nLe agradecemos realizar el pago ${esHoy?"*hoy*":"*lo antes posible*"} y confirmarnos por este medio. 📞 320 833 1293\n\n_CORPOSEPI®_`;
+  const msg=`Cordial saludo, familia *${acNombre(cc)}* 🙏\n\n${esHoy?`Le recordamos que *hoy ${fFecha(c.fecha)}* vence`:`Le informamos que el *${fFecha(c.fecha)}* venció`} la cuota de su *acuerdo de pago* con CORPOSEPI®:\n\n💵 Valor: *${fmt(c.monto)}*\n\n📌 *Importante:* este pago ya se encuentra *comprometido para cubrir una obligación de la corporación*, por lo que su cumplimiento puntual es indispensable para la operación.\n\nLe agradecemos realizar el pago ${esHoy?"*hoy*":"*lo antes posible*"} y confirmarnos por este medio. 📞 320 833 1293\n\n_CORPOSEPI®_`;
   window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,"_blank");
 }
 function marcarCuotaPagada(cc,i){
