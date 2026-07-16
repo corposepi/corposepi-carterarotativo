@@ -404,6 +404,7 @@ tr:hover td{background:#f7faff}
         <span style="font-size:22px">🤝</span>
         <p style="color:#15803D"><strong>Acuerdos con propuesta del papá</strong> — Elige el formato según el caso: <b>📄 Pensión</b> (1er abono = pensión del mes, máx. 3 días) o <b>💰 50%</b> (1er abono ≥ 50% de la deuda, 1 día). El papá propone sus fechas; usted <b>acepta o contra-propone</b>. Si no cumple el pago del día pactado, use <b>⚠️ No cumplió</b> para avisarle y restringir el servicio. <i>Sin acuerdo vigente no se presta el servicio de apoyo educativo.</i></p>
       </div>
+      <div class="card"><div class="card-h"><h3>🔔 Cuotas que vencen hoy / vencidas</h3></div><div id="ac-hoy"></div></div>
       <div class="card"><div class="card-h"><h3>📨 Propuestas por revisar</h3></div><div id="ac-nuevas"></div></div>
       <div class="card"><div class="card-h"><h3>⏳ Formatos enviados (esperando respuesta)</h3></div><div id="ac-espera"></div></div>
       <div class="card"><div class="card-h"><h3>✅ Acuerdos aceptados</h3></div><div id="ac-listos"></div></div>
@@ -2006,12 +2007,61 @@ function borrarAcuerdoFamilia(){
   fbdb.ref().update(updates).then(()=>{ toast("🗑 Acuerdo eliminado"); acuPropCc=null; c("ov-acu"); }).catch(e=>toast("❌ "+e.message));
 }
 const AC_EST_LBL={enviado:"📤 Enviado",propuesta:"📨 Propuso",contrapropuesta:"↩️ Contra",aceptado:"✅ Aceptado",incumplido:"⛔ Incumplido",rechazado:"✕ Rechazado"};
+
+// ── Cuotas de acuerdos que vencen hoy o están vencidas ──
+function acNombre(cc){
+  const f=DB.find(y=>String(y.cc)===String(cc));
+  return (PROPUESTAS[cc]?.nombre)||((f?.nombres||"")+" "+(f?.apellidos||"")).trim()||String(cc);
+}
+function recordarCuotaWA(cc,i){
+  const a=ACUERDOS[cc]; if(!a){toast("⚠ Sin acuerdo");return;}
+  const c=(a.cuotas||[])[i]; if(!c){toast("⚠ Cuota no encontrada");return;}
+  const f=DB.find(x=>String(x.cc)===String(cc));
+  const num=((PROPUESTAS[cc]?.tel||f?.celular||"")+"").replace(/\D/g,"");
+  if(!num){toast("⚠ Esta familia no tiene celular");return;}
+  const tel=num.startsWith("57")?num:"57"+num;
+  const compromiso = c.oblNombre ? `*${c.oblNombre}*` : "*el pago de salarios de docentes, arriendo y proveedores*";
+  const esHoy = c.fecha===hoy();
+  const msg=`Cordial saludo, familia *${acNombre(cc)}* 🙏\n\n${esHoy?`Le recordamos que *hoy ${fFecha(c.fecha)}* vence`:`Le informamos que el *${fFecha(c.fecha)}* venció`} la cuota de su *acuerdo de pago* con CORPOSEPI®:\n\n💵 Valor: *${fmt(c.monto)}*\n\n📌 *Importante:* este pago ya está *comprometido* para cubrir ${compromiso}. Por eso su cumplimiento puntual es indispensable para la operación de la corporación.\n\nLe agradecemos realizar el pago ${esHoy?"*hoy*":"*lo antes posible*"} y confirmarnos por este medio. 📞 320 833 1293\n\n_CORPOSEPI®_`;
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,"_blank");
+}
+function marcarCuotaPagada(cc,i){
+  if(!confirm("¿Marcar esta cuota del acuerdo como PAGADA?")) return;
+  fbdb.ref(`rotativo_v1/acuerdos/${cc}/cuotas/${i}/pagada`).set(true)
+    .then(()=>toast("✓ Cuota marcada como pagada")).catch(e=>toast("❌ "+e.message));
+}
+function rCuotasHoy(){
+  const h=hoy(), hoyArr=[], vencArr=[];
+  Object.entries(ACUERDOS).forEach(([cc,a])=>{
+    (a.cuotas||[]).forEach((c,i)=>{
+      if(c.pagada||!c.fecha) return;
+      if(c.fecha===h) hoyArr.push({cc,i,c});
+      else if(c.fecha<h) vencArr.push({cc,i,c});
+    });
+  });
+  vencArr.sort((a,b)=>a.c.fecha<b.c.fecha?-1:1);
+  const fila=(x,tipo)=>{
+    const esHoy=tipo==="hoy";
+    const comp=x.c.oblNombre?`🎯 Destinado a: ${x.c.oblNombre}`:"🎯 Destinado a compromisos de la corporación";
+    return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 11px;border-radius:9px;margin-bottom:6px;background:${esHoy?'#FFF7E6':'#FEF2F2'};border:1px solid ${esHoy?'#FCD34D':'#FCA5A5'}">
+      <div><b>${acNombre(x.cc)}</b> <span class="bg" style="background:${esHoy?'#FEF3C7':'#FEE2E2'};color:${esHoy?'#92400E':'#B91C1C'}">${esHoy?'Vence HOY':'Vencida '+fFecha(x.c.fecha)}</span>
+        <div style="font-size:11px;color:var(--ts);margin-top:2px">${comp}</div></div>
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+        <b style="color:var(--az);font-size:14px">${fmt(x.c.monto)}</b>
+        <button class="ab a-wa" onclick="recordarCuotaWA('${x.cc}',${x.i})">💬 Recordar</button>
+        <button class="ab a-pg" onclick="marcarCuotaPagada('${x.cc}',${x.i})">✓ Pagó</button>
+      </div></div>`;
+  };
+  const html=hoyArr.map(x=>fila(x,"hoy")).join("")+vencArr.map(x=>fila(x,"venc")).join("");
+  g("ac-hoy").innerHTML = html || '<div style="padding:14px;color:var(--ts);font-size:13px">No hay cuotas que venzan hoy ni vencidas. 🎉</div>';
+}
 function rAcuerdos(){
   const ent=Object.entries(PROPUESTAS);
   const nuevas=ent.filter(([cc,p])=>p.estado==="propuesta");
   const espera=ent.filter(([cc,p])=>p.estado==="enviado"||p.estado==="contrapropuesta");
   const listos=ent.filter(([cc,p])=>p.estado==="aceptado");
   const incump=ent.filter(([cc,p])=>p.estado==="incumplido");
+  rCuotasHoy();
   // Propuestas por revisar
   g("ac-nuevas").innerHTML = nuevas.length ? nuevas.map(([cc,p])=>{
     const cu=(p.propuesta?.cuotas)||[], tot=cu.reduce((s,c)=>s+(parseInt(c.monto)||0),0), cubre=tot>=(p.total||0);
