@@ -2052,9 +2052,9 @@ function recordarCuotaWA(cc,i){
   window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,"_blank");
 }
 function marcarCuotaPagada(cc,i){
-  if(!confirm("¿Marcar esta cuota del acuerdo como PAGADA?")) return;
   fbdb.ref(`rotativo_v1/acuerdos/${cc}/cuotas/${i}/pagada`).set(true)
-    .then(()=>toast("✓ Cuota marcada como pagada")).catch(e=>toast("❌ "+e.message));
+    .then(()=>toast("✓ "+acNombre(cc)+": cuota marcada como pagada"))
+    .catch(e=>toast("❌ "+e.message));
 }
 function rCuotasHoy(){
   const h=hoy(), hoyArr=[], vencArr=[];
@@ -2069,16 +2069,16 @@ function rCuotasHoy(){
   vencArr.sort((a,b)=>a.c.fecha<b.c.fecha?-1:1);
   const fila=(x,tipo)=>{
     const esHoy=tipo==="hoy";
-    return `<div style="border-radius:10px;margin-bottom:8px;padding:11px 13px;background:${esHoy?'#FFF7E6':'#FEF2F2'};border:1px solid ${esHoy?'#FCD34D':'#FCA5A5'}">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
-        <b style="font-size:14px">${acNombre(x.cc)}</b>
-        <span class="bg" style="background:${esHoy?'#FEF3C7':'#FEE2E2'};color:${esHoy?'#92400E':'#B91C1C'}">${esHoy?'Vence HOY':'Vencida '+fFecha(x.c.fecha)}</span>
+    return `<div style="border-radius:9px;margin-bottom:7px;padding:9px 10px;background:${esHoy?'#FFF7E6':'#FEF2F2'};border:1px solid ${esHoy?'#FCD34D':'#FCA5A5'}">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap">
+        <b style="font-size:13px">${acNombre(x.cc)}</b>
+        <span class="bg" style="background:${esHoy?'#FEF3C7':'#FEE2E2'};color:${esHoy?'#92400E':'#B91C1C'};font-size:10px">${esHoy?'HOY':'Venció '+fFecha(x.c.fecha)}</span>
       </div>
-      <div style="font-size:12px;color:var(--ts);margin:4px 0 9px">Cuota de <b style="color:var(--az);font-size:13px">${fmt(x.c.monto)}</b> · destinada a un compromiso de la corporación</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn b-w b-sm" onclick="recordarCuotaWA('${x.cc}',${x.i})">💬 Recordar por WhatsApp</button>
-        <button class="btn b-v b-sm" onclick="marcarCuotaPagada('${x.cc}',${x.i})">✓ Ya pagó esta cuota</button>
-        ${!esHoy?`<button class="btn b-o b-sm" onclick="marcarIncumplido('${x.cc}')" title="No pagó → restringir servicio">⚠️ No cumplió</button>`:""}
+      <div style="font-size:11px;color:var(--ts);margin:3px 0 7px">Cuota <b style="color:var(--az)">${fmt(x.c.monto)}</b> · compromiso de la corporación</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="ab a-wa" onclick="recordarCuotaWA('${x.cc}',${x.i})">💬 Recordar</button>
+        <button class="ab a-pg" onclick="marcarCuotaPagada('${x.cc}',${x.i})">✓ Ya pagó</button>
+        ${!esHoy?`<button class="ab a-dl" onclick="marcarIncumplido('${x.cc}')">⚠️ No cumplió</button>`:""}
       </div></div>`;
   };
   const html=hoyArr.map(x=>fila(x,"hoy")).join("")+vencArr.map(x=>fila(x,"venc")).join("");
