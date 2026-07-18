@@ -2056,6 +2056,27 @@ function marcarCuotaPagada(cc,i){
     .then(()=>toast("✓ "+acNombre(cc)+": cuota marcada como pagada"))
     .catch(e=>toast("❌ "+e.message));
 }
+function toggleCuotaPagada(cc,i,v){
+  fbdb.ref(`rotativo_v1/acuerdos/${cc}/cuotas/${i}/pagada`).set(!!v)
+    .then(()=>toast(v?"✓ Cuota marcada como pagada":"↩️ Cuota marcada pendiente"))
+    .catch(e=>toast("❌ "+e.message));
+}
+// Cuotas del acuerdo con su botón de pago (cada una se marca por separado)
+function acuCuotasHTML(cc){
+  const a=ACUERDOS[cc], cu=(a?.cuotas)||[];
+  if(!cu.length){
+    const p=PROPUESTAS[cc], pc=(p?.acordado?.cuotas)||(p?.propuesta?.cuotas)||[];
+    return `<div style="font-size:12px;color:var(--ts);margin:3px 0">${pc.map(c=>`${fFecha(c.fecha)}: ${fmt(c.monto)}`).join(" · ")||"—"}</div>`;
+  }
+  const pend=cu.reduce((s,c)=>s+(c.pagada?0:(parseInt(c.monto)||0)),0);
+  return `<div style="margin:5px 0">`+cu.map((c,i)=>{
+    const pag=!!c.pagada;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--gb)">
+      <span style="font-size:12px">${pag?'✅':'⏳'} ${fFecha(c.fecha)} · <b>${fmt(c.monto)}</b></span>
+      <button class="ab ${pag?'a-ed':'a-pg'}" onclick="toggleCuotaPagada('${cc}',${i},${pag?'false':'true'})">${pag?'Pagada ✓':'✓ Ya pagó'}</button>
+    </div>`;
+  }).join("")+`<div style="font-size:11px;color:var(--ro);font-weight:700;margin-top:5px">Falta por pagar: ${fmt(pend)}</div></div>`;
+}
 function rCuotasHoy(){
   const h=hoy(), hoyArr=[], vencArr=[];
   Object.entries(ACUERDOS).forEach(([cc,a])=>{
@@ -2122,7 +2143,7 @@ function rAcuerdos(){
     const a=ACUERDOS[cc], cu=(a?.cuotas)||(p.propuesta?.cuotas)||[], tot=cu.reduce((s,c)=>s+(parseInt(c.monto)||0),0);
     return `<div style="border-bottom:1px solid var(--gb);padding:9px 0">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>${p.nombre}</b><span style="color:#16A34A;font-weight:800">${fmt(tot)}</span></div>
-      <div style="font-size:12px;color:var(--ts);margin:3px 0">${cu.map(c=>`${fFecha(c.fecha)}: ${fmt(c.monto)}`).join(" · ")||"—"}</div>
+      ${acuCuotasHTML(cc)}
       <div style="display:flex;gap:5px;flex-wrap:wrap">
         <button class="ab a-dl" onclick="marcarIncumplido('${cc}')" title="No pagó el día pactado → restringir servicio">⚠️ No cumplió</button>
         <button class="ab a-dl" onclick="descartarPropuesta('${cc}')" title="Eliminar este acuerdo">🗑 Eliminar</button>
@@ -2141,7 +2162,7 @@ function rAcuerdos(){
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
         <div><b>${acNombre(cc)}</b> <span class="bg" style="background:#EEF2FF;color:#3730A3">creado desde la ficha</span></div>
         <span style="color:#16A34A;font-weight:800">${fmt(tot)}</span></div>
-      <div style="font-size:12px;color:var(--ts);margin:3px 0">${cu.map(c=>`${fFecha(c.fecha)}: ${fmt(c.monto)}`).join(" · ")||"—"}</div>
+      ${acuCuotasHTML(cc)}
       <div style="display:flex;gap:5px;flex-wrap:wrap">
         <button class="ab a-wa" onclick="enviarAcuerdoLink('${cc}')" title="Genera el link y envía la confirmación">📲 Enviar acuerdo + link</button>
         <button class="ab a-dl" onclick="descartarPropuesta('${cc}')" title="Eliminar este acuerdo">🗑 Eliminar</button>
