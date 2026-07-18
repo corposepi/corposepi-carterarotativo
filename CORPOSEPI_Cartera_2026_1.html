@@ -1957,10 +1957,13 @@ function enviarFormato(cc, tipo){
     .catch(e=>toast("❌ "+e.message));
 }
 function marcarIncumplido(cc){
-  const p=PROPUESTAS[cc]; if(!p)return;
-  if(!confirm("¿Marcar que "+(p.nombre||"la familia")+" NO cumplió el pago acordado?\nSe le enviará el aviso de incumplimiento y queda con el servicio de apoyo educativo RESTRINGIDO.")) return;
-  fbdb.ref("propuestas_acuerdo/"+cc).update({estado:"incumplido", servicioRestringido:true, fechaIncumplido:hoy()})
+  const f=DB.find(x=>String(x.cc)===String(cc)), a=ACUERDOS[cc];
+  const nombre=(PROPUESTAS[cc]?.nombre)||((f?.nombres||"")+" "+(f?.apellidos||"")).trim()||String(cc);
+  if(!confirm("¿Marcar que "+nombre+" NO cumplió el pago acordado?\nSe le enviará el aviso de incumplimiento y queda con el servicio de apoyo educativo RESTRINGIDO.")) return;
+  const doIt=()=>fbdb.ref("propuestas_acuerdo/"+cc).update({estado:"incumplido", servicioRestringido:true, fechaIncumplido:hoy()})
     .then(()=>{ toast("⚠️ Marcado como incumplido"); abrirIncumplidoWA(cc); }).catch(e=>toast("❌ "+e.message));
+  // Si es un acuerdo creado desde la ficha (sin snapshot), lo sincroniza primero para que aparezca bien
+  if(!PROPUESTAS[cc] && f && a) sincronizarSnapshotAcuerdo(f,a).then(doIt); else doIt();
 }
 function abrirIncumplidoWA(cc){
   const p=PROPUESTAS[cc]||{}, f=DB.find(x=>String(x.cc)===String(cc));
@@ -2056,6 +2059,7 @@ function marcarCuotaPagada(cc,i){
 function rCuotasHoy(){
   const h=hoy(), hoyArr=[], vencArr=[];
   Object.entries(ACUERDOS).forEach(([cc,a])=>{
+    if(PROPUESTAS[cc]?.estado==="incumplido") return;   // ya marcada como incumplido → sale de aquí
     (a.cuotas||[]).forEach((c,i)=>{
       if(c.pagada||!c.fecha) return;
       if(c.fecha===h) hoyArr.push({cc,i,c});
@@ -2073,6 +2077,7 @@ function rCuotasHoy(){
         <b style="color:var(--az);font-size:14px">${fmt(x.c.monto)}</b>
         <button class="ab a-wa" onclick="recordarCuotaWA('${x.cc}',${x.i})">💬 Recordar</button>
         <button class="ab a-pg" onclick="marcarCuotaPagada('${x.cc}',${x.i})">✓ Pagó</button>
+        ${!esHoy?`<button class="ab a-dl" onclick="marcarIncumplido('${x.cc}')" title="No pagó → restringir servicio">⚠️ No cumplió</button>`:""}
       </div></div>`;
   };
   const html=hoyArr.map(x=>fila(x,"hoy")).join("")+vencArr.map(x=>fila(x,"venc")).join("");
