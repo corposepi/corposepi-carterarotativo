@@ -2069,15 +2069,16 @@ function rCuotasHoy(){
   vencArr.sort((a,b)=>a.c.fecha<b.c.fecha?-1:1);
   const fila=(x,tipo)=>{
     const esHoy=tipo==="hoy";
-    const comp=x.c.oblNombre?`🎯 Destinado a: ${x.c.oblNombre}`:"🎯 Destinado a compromisos de la corporación";
-    return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 11px;border-radius:9px;margin-bottom:6px;background:${esHoy?'#FFF7E6':'#FEF2F2'};border:1px solid ${esHoy?'#FCD34D':'#FCA5A5'}">
-      <div><b>${acNombre(x.cc)}</b> <span class="bg" style="background:${esHoy?'#FEF3C7':'#FEE2E2'};color:${esHoy?'#92400E':'#B91C1C'}">${esHoy?'Vence HOY':'Vencida '+fFecha(x.c.fecha)}</span>
-        <div style="font-size:11px;color:var(--ts);margin-top:2px">${comp}</div></div>
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <b style="color:var(--az);font-size:14px">${fmt(x.c.monto)}</b>
-        <button class="ab a-wa" onclick="recordarCuotaWA('${x.cc}',${x.i})">💬 Recordar</button>
-        <button class="ab a-pg" onclick="marcarCuotaPagada('${x.cc}',${x.i})">✓ Pagó</button>
-        ${!esHoy?`<button class="ab a-dl" onclick="marcarIncumplido('${x.cc}')" title="No pagó → restringir servicio">⚠️ No cumplió</button>`:""}
+    return `<div style="border-radius:10px;margin-bottom:8px;padding:11px 13px;background:${esHoy?'#FFF7E6':'#FEF2F2'};border:1px solid ${esHoy?'#FCD34D':'#FCA5A5'}">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap">
+        <b style="font-size:14px">${acNombre(x.cc)}</b>
+        <span class="bg" style="background:${esHoy?'#FEF3C7':'#FEE2E2'};color:${esHoy?'#92400E':'#B91C1C'}">${esHoy?'Vence HOY':'Vencida '+fFecha(x.c.fecha)}</span>
+      </div>
+      <div style="font-size:12px;color:var(--ts);margin:4px 0 9px">Cuota de <b style="color:var(--az);font-size:13px">${fmt(x.c.monto)}</b> · destinada a un compromiso de la corporación</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn b-w b-sm" onclick="recordarCuotaWA('${x.cc}',${x.i})">💬 Recordar por WhatsApp</button>
+        <button class="btn b-v b-sm" onclick="marcarCuotaPagada('${x.cc}',${x.i})">✓ Ya pagó esta cuota</button>
+        ${!esHoy?`<button class="btn b-o b-sm" onclick="marcarIncumplido('${x.cc}')" title="No pagó → restringir servicio">⚠️ No cumplió</button>`:""}
       </div></div>`;
   };
   const html=hoyArr.map(x=>fila(x,"hoy")).join("")+vencArr.map(x=>fila(x,"venc")).join("");
@@ -2130,7 +2131,7 @@ function rAcuerdos(){
   }).join("");
   const htmlIncump = incump.map(([cc,p])=>`<div style="border-bottom:1px solid var(--gb);padding:9px 0;background:#FEF2F2;border-radius:8px;margin-bottom:4px;padding-left:8px;padding-right:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>${p.nombre}</b><span class="bg" style="background:#FEE2E2;color:#B91C1C">⛔ Incumplido · servicio restringido</span></div>
-      <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap"><button class="ab a-wa" onclick="abrirIncumplidoWA('${cc}')">💬 Reenviar aviso</button><button class="ab a-pg" onclick="reactivarAcuerdo('${cc}')">✓ Reactivar (ya pagó)</button><button class="ab a-dl" onclick="descartarPropuesta('${cc}')" title="Eliminar este acuerdo">🗑 Eliminar</button></div>
+      <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap"><button class="ab a-wa" onclick="abrirIncumplidoWA('${cc}')">💬 Reenviar aviso</button><button class="ab a-pg" onclick="reactivarAcuerdo('${cc}')" title="Quitar el incumplimiento y reactivar el servicio">↩️ Quitar "no cumplió"</button><button class="ab a-dl" onclick="descartarPropuesta('${cc}')" title="Eliminar este acuerdo">🗑 Eliminar</button></div>
     </div>`).join("");
   // Acuerdos creados desde la ficha del padre (existen en ACUERDOS pero aún sin formato/link)
   const manuales = Object.entries(ACUERDOS).filter(([cc,a])=>!PROPUESTAS[cc] && (a.cuotas||[]).length);
