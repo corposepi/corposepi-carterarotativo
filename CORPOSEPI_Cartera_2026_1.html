@@ -2075,7 +2075,28 @@ function acuCuotasHTML(cc){
       <span style="font-size:12px">${pag?'✅':'⏳'} ${fFecha(c.fecha)} · <b>${fmt(c.monto)}</b></span>
       <button class="ab ${pag?'a-ed':'a-pg'}" onclick="toggleCuotaPagada('${cc}',${i},${pag?'false':'true'})">${pag?'Pagada ✓':'✓ Ya pagó'}</button>
     </div>`;
-  }).join("")+`<div style="font-size:11px;color:var(--ro);font-weight:700;margin-top:5px">Falta por pagar: ${fmt(pend)}</div></div>`;
+  }).join("")+`<div style="font-size:11px;color:${pend>0?'var(--ro)':'#16A34A'};font-weight:700;margin-top:5px">${pend>0?'Falta por pagar: '+fmt(pend):'✓ Acuerdo cumplido — al día'}</div></div>`;
+}
+// Encabezado con el saldo pendiente del acuerdo (baja al marcar cuotas pagadas)
+function acuMontoHeader(cc, cuFallback){
+  const a=ACUERDOS[cc], cu=(a?.cuotas)||cuFallback||[];
+  const tot=cu.reduce((s,c)=>s+(parseInt(c.monto)||0),0);
+  const pend=cu.reduce((s,c)=>s+(c.pagada?0:(parseInt(c.monto)||0)),0);
+  return `<div style="text-align:right;line-height:1.25"><div style="font-size:10px;color:var(--ts)">Acuerdo ${fmt(tot)}</div><b style="color:${pend>0?'#B91C1C':'#16A34A'};font-size:14px">${pend>0?'Falta '+fmt(pend):'✓ Al día'}</b></div>`;
+}
+// Mensaje al papá con el estado del acuerdo (o felicitación si ya cumplió)
+function estadoAcuerdoWA(cc){
+  const a=ACUERDOS[cc], f=DB.find(x=>String(x.cc)===String(cc));
+  const cu=(a?.cuotas)||[]; if(!cu.length){toast("⚠ Sin cuotas");return;}
+  const num=((PROPUESTAS[cc]?.tel||f?.celular||"")+"").replace(/\D/g,""); if(!num){toast("⚠ Esta familia no tiene celular");return;}
+  const tel=num.startsWith("57")?num:"57"+num;
+  const pend=cu.reduce((s,c)=>s+(c.pagada?0:(parseInt(c.monto)||0)),0);
+  const pagado=cu.reduce((s,c)=>s+(c.pagada?(parseInt(c.monto)||0):0),0);
+  const detalle=cu.map(c=>`${c.pagada?'✅':'⏳'} ${fFecha(c.fecha)}: ${fmt(c.monto)}${c.pagada?' — pagada':''}`).join("\n");
+  const msg = pend<=0
+    ? `¡Muchas gracias, familia *${acNombre(cc)}*! 🎉\n\nConfirmamos que *cumplió en su totalidad* el acuerdo de pago con CORPOSEPI®:\n\n${detalle}\n\n*Total abonado: ${fmt(pagado)}* ✅\n\nSu cuenta queda *al día*. Agradecemos mucho su compromiso y cumplimiento. 🙏\n\n📞 320 833 1293\n_CORPOSEPI®_`
+    : `Cordial saludo, familia *${acNombre(cc)}* 🙏\n\nEste es el estado de su *acuerdo de pago* con CORPOSEPI®:\n\n${detalle}\n\n✅ *Abonado: ${fmt(pagado)}*\n⏳ *Saldo pendiente: ${fmt(pend)}*\n\nLe agradecemos continuar cumpliendo en las fechas pactadas para quedar al día. 📞 320 833 1293\n\n_CORPOSEPI®_`;
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,"_blank");
 }
 function rCuotasHoy(){
   const h=hoy(), hoyArr=[], vencArr=[];
@@ -2142,9 +2163,10 @@ function rAcuerdos(){
   const htmlListos = listos.map(([cc,p])=>{
     const a=ACUERDOS[cc], cu=(a?.cuotas)||(p.propuesta?.cuotas)||[], tot=cu.reduce((s,c)=>s+(parseInt(c.monto)||0),0);
     return `<div style="border-bottom:1px solid var(--gb);padding:9px 0">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>${p.nombre}</b><span style="color:#16A34A;font-weight:800">${fmt(tot)}</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><b>${p.nombre}</b>${acuMontoHeader(cc, p.propuesta?.cuotas)}</div>
       ${acuCuotasHTML(cc)}
       <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="ab a-wa" onclick="estadoAcuerdoWA('${cc}')" title="Enviar al papá el estado del acuerdo">💬 Estado al papá</button>
         <button class="ab a-dl" onclick="marcarIncumplido('${cc}')" title="No pagó el día pactado → restringir servicio">⚠️ No cumplió</button>
         <button class="ab a-dl" onclick="descartarPropuesta('${cc}')" title="Eliminar este acuerdo">🗑 Eliminar</button>
       </div>
@@ -2161,10 +2183,11 @@ function rAcuerdos(){
     return `<div style="border-bottom:1px solid var(--gb);padding:9px 0">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
         <div><b>${acNombre(cc)}</b> <span class="bg" style="background:#EEF2FF;color:#3730A3">creado desde la ficha</span></div>
-        <span style="color:#16A34A;font-weight:800">${fmt(tot)}</span></div>
+        ${acuMontoHeader(cc)}</div>
       ${acuCuotasHTML(cc)}
       <div style="display:flex;gap:5px;flex-wrap:wrap">
         <button class="ab a-wa" onclick="enviarAcuerdoLink('${cc}')" title="Genera el link y envía la confirmación">📲 Enviar acuerdo + link</button>
+        <button class="ab a-wa" onclick="estadoAcuerdoWA('${cc}')" title="Enviar al papá el estado del acuerdo">💬 Estado al papá</button>
         <button class="ab a-dl" onclick="descartarPropuesta('${cc}')" title="Eliminar este acuerdo">🗑 Eliminar</button>
       </div></div>`;
   }).join("");
