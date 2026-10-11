@@ -699,9 +699,14 @@ tr:hover td{background:#f7faff}
     <div style="font-weight:700;color:var(--az);font-size:15px" id="aj-n">—</div>
     <div style="font-size:11px;color:var(--ts);margin-bottom:14px" id="aj-d">—</div>
     <div class="ff" style="margin-bottom:14px">
+      <label>📅 Mes de ingreso (desde cuándo paga pensión)</label>
+      <select id="aj-inicio"></select>
+      <div class="ht" style="font-size:11px;color:var(--ts);margin-top:4px">Si el estudiante ingresó después de febrero, elige su primer mes. Solo se cobra pensión desde ese mes (la matrícula no cambia).</div>
+    </div>
+    <div class="ff" style="margin-bottom:14px">
       <label>🚪 Estado / retiro</label>
       <select id="aj-fin"></select>
-      <div class="ht" style="font-size:11px;color:var(--ts);margin-top:4px">Si el estudiante se retiró, elige el último mes que debe pensión. "Activo" = sigue todo el año.</div>
+      <div class="ht" style="font-size:11px;color:var(--ts);margin-top:4px">Si el estudiante se retiró, elige el último mes que debe pensión. "Activo" = sigue hasta noviembre.</div>
     </div>
     <div style="font-size:10px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">💲 Valores por estudiante</div>
     <div id="aj-hijos"></div>
@@ -1698,7 +1703,10 @@ function abrirAjustes(idx){
   ajIdx=idx; const f=DB[idx];
   g("aj-n").textContent=f.nombres;
   g("aj-d").textContent=(f.tipodoc||"CC")+" "+f.cedula;
-  let ops='<option value="">✅ Activo (todo el año)</option>';
+  let iniOps='';
+  for(let m=0;m<10;m++)iniOps+=`<option value="${m}"${((f.inicio||0)===m)?" selected":""}>${MESES_L[m+1]} 2026</option>`;
+  g("aj-inicio").innerHTML=iniOps;
+  let ops='<option value="">✅ Activo (hasta noviembre)</option>';
   for(let m=0;m<10;m++)ops+=`<option value="${m}"${(f.retirado&&f.finMes===m)?" selected":""}>🚪 Retirado en ${MESES_L[m+1]}</option>`;
   g("aj-fin").innerHTML=ops;
   g("aj-hijos").innerHTML=(f.estudiantes||[]).map(e=>`
@@ -1718,6 +1726,7 @@ function guardarAjustes(){
   const cc=DB[ajIdx].cc;
   const finVal=g("aj-fin").value;
   const updates={};
+  updates[`familias_v3/${cc}/inicio`]= parseInt(g("aj-inicio").value)||0;
   updates[`familias_v3/${cc}/fin`]= finVal===""?null:parseInt(finVal);
   document.querySelectorAll("#aj-hijos > div").forEach((row,i)=>{
     const pen=parseInt(row.querySelector(".aj-pen").value)||0;
