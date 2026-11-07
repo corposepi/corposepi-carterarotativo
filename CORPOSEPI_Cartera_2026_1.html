@@ -317,6 +317,7 @@ tr:hover td{background:#f7faff}
   <button class="nb" onclick="ir('acuerdos',this)">🤝 Acuerdos de Pago <span class="nbg" id="nb-ac">0</span></button>
   <button class="nb" onclick="ir('matricula',this)">🎓 Matrículas</button>
   <button class="nb" onclick="ir('factura',this)">🧾 Facturación</button>
+  <button class="nb" onclick="ir('estados',this)">📄 Estados / Paz y Salvo</button>
   <div class="sb-sec">Gestión</div>
   <button class="nb" onclick="ir('msg',this)">💬 Mensajes WA</button>
   <button class="nb" onclick="ir('flujo',this)">📈 Flujo de Caja</button>
@@ -439,6 +440,26 @@ tr:hover td{background:#f7faff}
           </div>
         </div>
         <div id="fac-tabla"></div>
+      </div>
+    </div>
+
+    <!-- ESTADOS DE CUENTA Y PAZ Y SALVO -->
+    <div class="pg" id="pg-estados">
+      <div class="alert-b" style="background:linear-gradient(135deg,#EAF7EE,#F2FBF5);border-color:#16A34A">
+        <span style="font-size:22px">📄</span>
+        <p style="color:#15803D"><strong>Cierre de año</strong> — Genera el <b>estado de cuenta</b> de cada familia (pensiones mes a mes + matrícula) y el <b>Paz y Salvo</b> para quienes están al día en todo concepto. Imprimibles / PDF con logo, y envío por WhatsApp.</p>
+      </div>
+      <div class="kpis" id="es-kpis"></div>
+      <div class="card">
+        <div class="card-h" style="flex-wrap:wrap;gap:8px">
+          <h3>📄 Familias</h3>
+          <select id="es-flt" onchange="rEstadosCuenta()" style="padding:7px;border:1px solid var(--gb);border-radius:8px;font-size:12px">
+            <option value="">Todas</option>
+            <option value="aldia">✓ Solo al día (paz y salvo)</option>
+            <option value="debe">Con saldo pendiente</option>
+          </select>
+        </div>
+        <div id="es-tabla"></div>
       </div>
     </div>
 
@@ -1006,6 +1027,7 @@ const PAGES={
   acuerdos:{el:"pg-acuerdos",tit:"🤝 Acuerdos de Pago",sub:"Propuestas de los papás — revisar, aceptar o contra-proponer",exp:false},
   matricula:{el:"pg-matricula",tit:"🎓 Matrículas 2026",sub:"Control de matrículas — pagado y pendiente · sin interés",exp:false},
   factura:{el:"pg-factura",tit:"🧾 Facturación",sub:"Facturas y recibos de caja · estilo Siigo · sin IVA (servicio educativo excluido, Art. 476 E.T.)",exp:false},
+  estados:{el:"pg-estados",tit:"📄 Estados de cuenta y Paz y Salvo",sub:"Estado de cuenta anual por familia (pensiones + matrícula) y paz y salvo para quienes están al día",exp:false},
   msg:{el:"pg-msg",tit:"💬 Mensajes WhatsApp",sub:"Recordatorios y notificaciones automáticas",exp:false},
   flujo:{el:"pg-flujo",tit:"📈 Flujo de Caja",sub:"Proyección financiera CORPOSEPI® 2026",exp:false},
 };
@@ -1030,6 +1052,7 @@ function ir(id,btn){
   if(id==="acuerdos")rAcuerdos();
   if(id==="matricula")rMatriculas();
   if(id==="factura")rFacturacion();
+  if(id==="estados")rEstadosCuenta();
   if(id==="msg"){prevMsg();rHistWA();}
   if(id==="flujo")rFlujo();
 }
@@ -2340,11 +2363,101 @@ function docRecibo(rc){
     <div class="doc-note">Recibo de caja generado por CORPOSEPI®. Cancela/cruza la cuenta por cobrar de la factura relacionada.</div>
   </div>`;
 }
+// ═══════════ ESTADOS DE CUENTA Y PAZ Y SALVO (cierre de año) ═══════════
+function estadoAnual(f){
+  const ini=(f.inicio||0), fin=(f.finMes!=null?f.finMes:9), meses=[];
+  let espTot=0, pagTot=0, pendTot=0;
+  for(let m=ini;m<=fin;m++){
+    const esp=f.esperadoPorMes?.[m]||0; if(esp<=0) continue;
+    const pagReal=f.pagosMes?.[m]||0, pagMes=Math.min(esp,pagReal), pend=Math.max(0,esp-pagReal);
+    espTot+=esp; pagTot+=pagMes; pendTot+=pend;
+    meses.push({mes:MESES_L[m+1], esp, pag:pagMes, pend});
+  }
+  const matTot=f.matricula||0, matPag=f.matriculaPagada||0, matSaldo=Math.max(0,matTot-matPag);
+  const totalPend=pendTot+matSaldo;
+  return {meses, espTot, pagTot, pendTot, matTot, matPag, matSaldo, totalPend, alDia:(totalPend===0)};
+}
+function docEstadoCuenta(f){
+  const e=estadoAnual(f), nombre=(f.nombres+" "+(f.apellidos||"")).trim();
+  const ests=(f.estudiantes||[]).map(x=>x.nombre+(x.grado?` (${x.grado})`:"")).join(", ");
+  const badge = e.totalPend<=0 ? '<span class="doc-badge" style="background:#DCFCE7;color:#15803D">✓ AL DÍA</span>'
+    : `<span class="doc-badge" style="background:#FEF3C7;color:#92400E">SALDO ${fmt(e.totalPend)}</span>`;
+  return `<div class="doc">
+    ${docHead("ESTADO DE CUENTA 2026","", hoy(), "")}
+    <div class="doc-adq"><div class="lb">Acudiente</div><b>${nombre}</b><br>CC: ${f.cedula||f.cc||""}${f.celular?` · Tel: ${f.celular}`:""}<br><span style="font-size:11px;color:#64748B">Estudiante(s): ${ests}</span></div>
+    <table><thead><tr><th>Concepto</th><th style="text-align:right">Esperado</th><th style="text-align:right">Pagado</th><th style="text-align:right">Pendiente</th></tr></thead>
+    <tbody>${e.meses.map(r=>`<tr><td>Pensión ${r.mes} 2026</td><td style="text-align:right">${fmt(r.esp)}</td><td style="text-align:right;color:#15803D">${fmt(r.pag)}</td><td style="text-align:right;color:${r.pend>0?'#B91C1C':'#94A3B8'}">${fmt(r.pend)}</td></tr>`).join("")}
+      <tr style="font-weight:800;background:var(--gf)"><td>Subtotal pensiones</td><td style="text-align:right">${fmt(e.espTot)}</td><td style="text-align:right;color:#15803D">${fmt(e.pagTot)}</td><td style="text-align:right;color:${e.pendTot>0?'#B91C1C':'#94A3B8'}">${fmt(e.pendTot)}</td></tr>
+      <tr><td>Matrícula 2026</td><td style="text-align:right">${fmt(e.matTot)}</td><td style="text-align:right;color:#15803D">${fmt(e.matPag)}</td><td style="text-align:right;color:${e.matSaldo>0?'#B91C1C':'#94A3B8'}">${fmt(e.matSaldo)}</td></tr>
+    </tbody></table>
+    <div class="doc-tot">
+      <div class="r"><span>Total del año</span><span>${fmt(e.espTot+e.matTot)}</span></div>
+      <div class="r"><span>Total pagado</span><span style="color:#15803D">${fmt(e.pagTot+e.matPag)}</span></div>
+      <div class="r g"><span>SALDO PENDIENTE</span><span style="color:${e.totalPend>0?'#B91C1C':'#16A34A'}">${fmt(e.totalPend)}</span></div>
+    </div>
+    <div style="margin-top:12px;clear:both">${badge}</div>
+    <div class="doc-note">Estado de cuenta del año lectivo 2026 (pensiones y matrícula). Documento informativo de CORPOSEPI®. 📞 320 833 1293.</div>
+  </div>`;
+}
+function docPazSalvo(f){
+  const nombre=(f.nombres+" "+(f.apellidos||"")).trim();
+  const ests=(f.estudiantes||[]).map(x=>x.nombre+(x.grado?` (${x.grado})`:"")).join(", ");
+  return `<div class="doc">
+    ${docHead("PAZ Y SALVO 2026","", hoy(), "")}
+    <div style="margin:16px 0;font-size:13.5px;line-height:1.8;text-align:justify">
+      La <b>Corporación de Servicios Educativos Pensamiento e Innovación — CORPOSEPI®</b>, identificada con NIT ${(FACT_CFG.nit||"901.898.846-6")}, hace constar que:
+      <div style="text-align:center;margin:16px 0"><b style="font-size:16px">${nombre}</b><br>CC ${f.cedula||f.cc||""}<br><span style="font-size:12px;color:#64748B">Acudiente de: ${ests}</span></div>
+      Se encuentra <b>A PAZ Y SALVO POR TODO CONCEPTO</b> (pensiones y matrícula) correspondiente al año lectivo <b>2026</b>, a la fecha de expedición del presente documento.
+    </div>
+    <div style="text-align:center;margin:18px 0"><span class="doc-badge" style="background:#DCFCE7;color:#15803D;font-size:15px;padding:8px 22px">✓ A PAZ Y SALVO</span></div>
+    <div style="margin-top:28px;text-align:center;font-size:12px;color:#475569">
+      Expedido en Madrid, Cundinamarca, el ${fFecha(hoy())}.<br><br><br>
+      ______________________________<br>CORPOSEPI® · Dirección Administrativa<br>📞 320 833 1293
+    </div>
+  </div>`;
+}
+function verEstadoCuenta(cc){ const f=DB.find(x=>String(x.cc)===String(cc)); if(!f){toast("Familia no encontrada");return;} docCtx={tipo:"estado",cc}; g("doc-tit").textContent="📄 Estado de cuenta"; g("doc-body").innerHTML=docEstadoCuenta(f); ab("ov-doc"); }
+function verPazSalvo(cc){ const f=DB.find(x=>String(x.cc)===String(cc)); if(!f){toast("Familia no encontrada");return;} const e=estadoAnual(f); if(!e.alDia){ toast("⚠ Tiene saldo pendiente ("+fmt(e.totalPend)+"), no se puede emitir paz y salvo"); return; } docCtx={tipo:"pazsalvo",cc}; g("doc-tit").textContent="✅ Paz y Salvo"; g("doc-body").innerHTML=docPazSalvo(f); ab("ov-doc"); }
+function rEstadosCuenta(){
+  const filtro=g("es-flt")?.value||"";
+  let data=[...DB].map(f=>({f,e:estadoAnual(f)}));
+  const alDiaN=data.filter(x=>x.e.alDia).length, debenN=data.length-alDiaN;
+  const saldoTot=data.reduce((s,x)=>s+x.e.totalPend,0);
+  g("es-kpis").innerHTML=[
+    facKpi("az","Familias",data.length,""),
+    facKpi("ve","Al día (paz y salvo)",alDiaN,""),
+    facKpi("ro","Con saldo",debenN,""),
+    facKpi("am","Saldo total pendiente",fmt(saldoTot),"")
+  ].join("");
+  if(filtro==="aldia") data=data.filter(x=>x.e.alDia);
+  else if(filtro==="debe") data=data.filter(x=>!x.e.alDia);
+  data.sort((a,b)=>(a.f.nombres||"").localeCompare(b.f.nombres||""));
+  const el=g("es-tabla");
+  if(!data.length){ el.innerHTML='<div style="padding:16px;color:var(--ts)">Sin familias.</div>'; return; }
+  el.innerHTML='<table><thead><tr><th>Familia</th><th>Saldo</th><th>Estado</th><th>Documentos</th></tr></thead><tbody>'+data.map(({f,e})=>`<tr>
+    <td>${f.nombres} ${f.apellidos}<div style="font-size:10px;color:var(--ts)">${(f.estudiantes||[]).map(x=>x.nombre).join(", ")}</div></td>
+    <td style="font-weight:700;color:${e.totalPend>0?'var(--ro)':'#16A34A'}">${fmt(e.totalPend)}</td>
+    <td>${e.alDia?'<span class="bg" style="background:#DCFCE7;color:#15803D">✓ Al día</span>':'<span class="bg" style="background:#FEF3C7;color:#92400E">Debe</span>'}</td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap">
+      <button class="ab a-ed" onclick="verEstadoCuenta('${f.cc}')">📄 Estado</button>
+      ${e.alDia?`<button class="ab a-pg" onclick="verPazSalvo('${f.cc}')">✅ Paz y salvo</button>`:''}
+    </div></td></tr>`).join("")+'</tbody></table>';
+}
+
 let docCtx=null;
 function verFactura(id){ const fa=getFactura(id); if(!fa){toast("Factura no encontrada");return;} docCtx={tipo:"factura",id}; g("doc-tit").textContent="🧾 Factura "+(fa.num||"por emitir"); g("doc-body").innerHTML=docFactura({...fa,id}); ab("ov-doc"); }
 function verRecibo(id){ const rc=getRecibo(id); if(!rc){toast("Recibo no encontrado");return;} docCtx={tipo:"recibo",id}; g("doc-tit").textContent="🧾 Recibo "+(rc.num||""); g("doc-body").innerHTML=docRecibo(rc); ab("ov-doc"); }
 function docEnviarWA(){
   if(!docCtx)return;
+  if(docCtx.tipo==="estado"||docCtx.tipo==="pazsalvo"){
+    const f=DB.find(x=>String(x.cc)===String(docCtx.cc)); if(!f)return;
+    const numTel=((f.celular||"")+"").replace(/\D/g,""); if(!numTel){toast("⚠ Esta familia no tiene celular");return;}
+    const t=numTel.startsWith("57")?numTel:"57"+numTel, nombre=(f.nombres+" "+(f.apellidos||"")).trim(), e=estadoAnual(f);
+    const msg = docCtx.tipo==="pazsalvo"
+      ? `Cordial saludo, familia *${nombre}* 🙏\n\n¡Felicitaciones! 🎉 Su familia se encuentra *A PAZ Y SALVO POR TODO CONCEPTO* (pensiones y matrícula) del año lectivo 2026 con CORPOSEPI®.\n\nAgradecemos mucho su cumplimiento y confianza. 📞 320 833 1293\n\n_CORPOSEPI®_`
+      : `Cordial saludo, familia *${nombre}* 🙏\n\nLe compartimos su *estado de cuenta 2026* con CORPOSEPI®:\n\n• Total del año: *${fmt(e.espTot+e.matTot)}*\n• Pagado: *${fmt(e.pagTot+e.matPag)}*\n• Saldo pendiente: *${fmt(e.totalPend)}*\n\n${e.totalPend>0?"Le agradecemos ponerse al día para cerrar el año a paz y salvo.":"✓ ¡Su cuenta está al día!"} 📞 320 833 1293\n\n_CORPOSEPI®_`;
+    window.open(`https://wa.me/${t}?text=${encodeURIComponent(msg)}`,"_blank"); return;
+  }
   let num,concepto,valor,tel,nombre,estado;
   if(docCtx.tipo==="factura"){ const fa=getFactura(docCtx.id); if(!fa)return; num=fa.num;concepto=fa.concepto;valor=fa.valor;tel=fa.tel;nombre=fa.nombre;estado=fa.estado; }
   else { const rc=getRecibo(docCtx.id); if(!rc)return; num=rc.num;concepto=rc.concepto;valor=rc.valor;nombre=rc.nombre; const fa=rc.facturaId?getFactura(rc.facturaId):null; tel=fa?.tel; estado="pagada"; }
