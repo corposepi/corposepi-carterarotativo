@@ -922,6 +922,16 @@ const sv=()=>{}; // las familias ahora viven en Firebase (no localStorage)
 const fmt=n=>"$"+Math.round(n||0).toLocaleString("es-CO");
 const hoy=()=>new Date().toISOString().split("T")[0];
 
+// Pensión de un estudiante en el mes m (0=feb). Matrícula 2027 de contado con descuento → descPct% de
+// descuento SOLO si ese mes se paga hasta el día descDia; si se paga después (o no se ha pagado y ya pasó el día) → plena.
+function pensionHijoMes(h,m,fechas){
+  const plena=(m===0&&h.pensionFeb!=null&&h.pensionFeb!=="")?(parseInt(h.pensionFeb)||0):(parseInt(h.pension)||0);
+  const pct=parseFloat(h.descPct)||0; if(!pct) return plena;
+  const lim=ANIO+"-"+String(m+2).padStart(2,"0")+"-"+String(parseInt(h.descDia)||6).padStart(2,"0");
+  const fp=(fechas||{})[m];
+  const aTiempo = fp ? fp<=lim : hoy()<=lim;
+  return aTiempo ? plena-Math.round(plena*pct/100) : plena;
+}
 // Construye DB (modelo de esta app) desde familias_v3/pagos_v3, calculando mora real por mes
 function reconstruirDB(){
   const idxAct=idxMesActual(), dia=new Date().getDate(), diaCorte=parseInt(CFG.diaCorte)||5;
@@ -929,7 +939,8 @@ function reconstruirDB(){
     const cc=f.cc, hijos=f.hijos||[];
     const pensionMensual=hijos.reduce((s,h)=>s+(parseInt(h.pension)||0),0); // regular mar–nov (para mostrar)
     // Esperado por mes: febrero (idx0) puede tener valor distinto por estudiante (pensionFeb)
-    const esperadoMes=m=>hijos.reduce((s,h)=>s+((m===0&&h.pensionFeb!=null&&h.pensionFeb!=="")?(parseInt(h.pensionFeb)||0):(parseInt(h.pension)||0)),0);
+    const fechasPago=PAGOS["f_"+cc]?.fechas||{};
+    const esperadoMes=m=>hijos.reduce((s,h)=>s+pensionHijoMes(h,m,fechasPago),0);
     const esperadoPorMes=[];for(let m=0;m<10;m++)esperadoPorMes[m]=esperadoMes(m);
     const inicio=parseInt(f.inicio)||0;
     const pgs=PAGOS["f_"+cc]?.pensiones||{};
@@ -1497,6 +1508,8 @@ function guardar(){
       matricula:(existente?.hijos?.[i]?.matricula!=null)?existente.hijos[i].matricula:(i===0?mat:0)
     };
     if(existente?.hijos?.[i]?.pensionFeb!=null) h.pensionFeb=existente.hijos[i].pensionFeb; // conservar pensión de febrero
+    // conservar datos de la matrícula en línea (descuento en pensión, carné, folio)
+    ["descPct","descDia","carnet","folio"].forEach(k=>{ if(existente?.hijos?.[i]?.[k]!=null) h[k]=existente.hijos[i][k]; });
     return h;
   });
   const fam={
@@ -1580,6 +1593,8 @@ function confPago(){
     const aplica=Math.min(gap, resto);
     const prev0=parseInt(pgs?.[m]?.[0])||0;
     updates[`${NP}/f_${cc}/pensiones/${m}/0`]=prev0+aplica;
+    // fecha del primer pago de ese mes (define si aplica el descuento por pagar hasta el día límite)
+    if(!PAGOS["f_"+cc]?.fechas?.[m]) updates[`${NP}/f_${cc}/fechas/${m}`]=g("pg-f").value||hoy();
     cubiertos.push(MESES_L[m+1]+" "+fmt(aplica));
     resto-=aplica;
   }

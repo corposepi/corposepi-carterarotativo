@@ -1218,6 +1218,14 @@ let PAGOS = {};           // pagos_v3 (lectura en vivo)
 let DB_CARTERA = [];      // adaptado para los renders existentes (se reconstruye en cada cambio)
 
 // Índice del mes actual en la planilla (Feb=0 … Nov=9). Hoy junio → 4
+// Pensión de un estudiante en el mes m (0=feb): con descPct% solo si ese mes se paga hasta el día descDia (matrícula 2027 de contado)
+function pensionHijoMes(h,m,fechas){
+  const plena=(m===0&&h.pensionFeb!=null&&h.pensionFeb!=="")?(parseInt(h.pensionFeb)||0):(parseInt(h.pension)||0);
+  const pct=parseFloat(h.descPct)||0; if(!pct) return plena;
+  const lim=ANIO+"-"+String(m+2).padStart(2,"0")+"-"+String(parseInt(h.descDia)||6).padStart(2,"0");
+  const fp=(fechas||{})[m], hoyS=new Date().toISOString().slice(0,10);
+  return (fp ? fp<=lim : hoyS<=lim) ? plena-Math.round(plena*pct/100) : plena;
+}
 function idxMesActual(){ const y=new Date().getFullYear(); if(ANIO>y) return -1; if(ANIO<y) return 9; return Math.max(-1, Math.min(9, new Date().getMonth() - 1)); } // año futuro: nada vencido; año pasado: todo
 
 // Construye DB_CARTERA calculando mora real por familia (pensiones vencidas no pagadas)
@@ -1230,7 +1238,8 @@ function reconstruirCartera(){
     const hijos = f.hijos || [];
     const pensionMensual = hijos.reduce((s,h)=>s + (parseInt(h.pension)||0), 0); // regular mar–nov
     // Esperado por mes: febrero (idx0) puede tener valor distinto por estudiante (pensionFeb)
-    const esperadoMes = m => hijos.reduce((s,h)=>s + ((m===0 && h.pensionFeb!=null && h.pensionFeb!=="")?(parseInt(h.pensionFeb)||0):(parseInt(h.pension)||0)), 0);
+    const fechasPago = PAGOS["f_"+cc]?.fechas || {};
+    const esperadoMes = m => hijos.reduce((s,h)=>s + pensionHijoMes(h, m, fechasPago), 0);
     const inicio = parseInt(f.inicio) || 0;
     const pgs = PAGOS["f_"+cc]?.pensiones || {};
     // Mes de retiro: solo debe pensión hasta ese mes (fin = índice 0..9)
@@ -1992,7 +2001,7 @@ function pre_pensionCal(base){
         cal[m+1]+=pg;
       } else {
         if(m<inicio||m>fin) continue;
-        cal[m+1]+= hijos.reduce((s,h)=>s+((m===0&&h.pensionFeb!=null&&h.pensionFeb!=="")?(parseInt(h.pensionFeb)||0):(parseInt(h.pension)||0)),0);
+        cal[m+1]+= hijos.reduce((s,h)=>s+pensionHijoMes(h,m,PAGOS["f_"+f.cc]?.fechas),0);
       }
     }
   });
