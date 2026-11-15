@@ -305,7 +305,7 @@ tr:hover td{background:#f8fafc}
     </div>
     <div class="sb-modulo">
       <div class="sb-modulo-t">🔄 Flujo Rotativo</div>
-      <div class="sb-modulo-s">Fondo Educativo 2026</div>
+      <div class="sb-modulo-s">Fondo Educativo <span class="anio-c">2026</span></div>
     </div>
   </div>
   <div class="sb-sec">Gestión del Fondo</div>
@@ -339,12 +339,14 @@ tr:hover td{background:#f8fafc}
 
 <!-- MAIN -->
 <div class="main">
+  <div id="banner-anio" style="display:none;background:#C4440C;color:#fff;text-align:center;padding:7px 12px;font-weight:800;border-radius:10px;margin-bottom:10px">📅 Estás viendo el FONDO ROTATIVO <span class="anio-c">2027</span> — año nuevo (préstamos, compromisos, presupuesto y gastos en limpio). Para volver a 2026 cambia el año arriba.</div>
   <div class="top">
     <div class="top-l">
       <h1 id="pg-tit">📊 Dashboard del Fondo Rotativo</h1>
-      <p id="pg-sub">CORPOSEPI® · Fondo Educativo Rotativo 2026 · Madrid, Cundinamarca</p>
+      <p id="pg-sub">CORPOSEPI® · Fondo Educativo Rotativo <span class="anio-c">2026</span> · Madrid, Cundinamarca</p>
     </div>
     <div class="top-r">
+      <label style="font-weight:700;font-size:12px">Año <select id="sel-anio" onchange="cambiarAnio(this.value)" style="padding:5px 8px;border-radius:8px;font-weight:800"><option value="2026">2026</option><option value="2027">2027</option></select></label>
       <span id="top-fecha" style="font-size:11px;color:var(--ts);background:var(--gf);padding:5px 10px;border-radius:7px;border:1px solid var(--gb)"></span>
       <button class="btn b-o b-sm" id="btn-sync" onclick="sincronizarCartera()" title="Sincronizar datos con módulo Cartera">🔄 Sincronizar Cartera</button>
       <button class="btn b-o b-sm" onclick="exportarReporte()">📋 Reporte</button>
@@ -429,7 +431,7 @@ tr:hover td{background:#f8fafc}
         <button class="btn b-corp b-sm" id="ciclo-alerta-btn" onclick="">Actuar →</button>
       </div>
       <div class="card">
-        <div class="card-h"><h3>🔄 Ciclos 2026 — Enero a Noviembre</h3></div>
+        <div class="card-h"><h3>🔄 Ciclos <span class="anio-c">2026</span> — Enero a Noviembre</h3></div>
         <div style="padding:16px 20px">
           <div class="ciclo-grid" id="ciclo-grid"></div>
         </div>
@@ -1195,6 +1197,15 @@ const FB = {
 };
 firebase.initializeApp(FB);
 const fbdb = firebase.database();
+// ═══════════ AÑO DEL FONDO (2026 = datos actuales, 2027 = año nuevo, en limpio) ═══════════
+const ANIOS=[2026,2027];
+const ANIO=(()=>{const q=new URLSearchParams(location.search).get('anio');let v=parseInt(q||localStorage.getItem('csp_anio')||'2026');return ANIOS.includes(v)?v:2026;})();
+const NF = ANIO===2026 ? 'familias_v3' : 'familias_'+ANIO;
+const NP = ANIO===2026 ? 'pagos_v3' : 'pagos_'+ANIO;
+// préstamos, compromisos, acuerdos, presupuesto, gastos y config contable van por año; cuentas, inversiones, deudas y personal son compartidos
+const RV = sub => ANIO===2026 ? 'rotativo_v1/'+sub : 'rotativo_v1/'+sub+'_'+ANIO;
+function cambiarAnio(a){ try{localStorage.setItem('csp_anio',a);}catch(e){} location.href=location.pathname+'?anio='+a; }
+document.addEventListener('DOMContentLoaded',()=>{ document.querySelectorAll('.anio-c').forEach(e=>e.textContent=ANIO); const s=document.getElementById('sel-anio'); if(s) s.value=ANIO; const b=document.getElementById('banner-anio'); if(b) b.style.display=ANIO===2026?'none':'block'; const n=document.getElementById('cfg-nombre'); if(n) n.value=n.value.replace('2026',ANIO); const lk=document.querySelector('a.sb-link[href^="CORPOSEPI_Cartera"]'); if(lk) lk.href='CORPOSEPI_Cartera_2026_1.html?anio='+ANIO; });
 // ── LOGIN SEGURO ──
 const fbauth = firebase.auth();
 fbauth.onAuthStateChanged(u=>{ const gt=document.getElementById("login-gate"); if(gt) gt.style.display = u ? "none":"flex"; });
@@ -1207,7 +1218,7 @@ let PAGOS = {};           // pagos_v3 (lectura en vivo)
 let DB_CARTERA = [];      // adaptado para los renders existentes (se reconstruye en cada cambio)
 
 // Índice del mes actual en la planilla (Feb=0 … Nov=9). Hoy junio → 4
-function idxMesActual(){ return Math.max(-1, Math.min(9, new Date().getMonth() - 1)); }
+function idxMesActual(){ const y=new Date().getFullYear(); if(ANIO>y) return -1; if(ANIO<y) return 9; return Math.max(-1, Math.min(9, new Date().getMonth() - 1)); } // año futuro: nada vencido; año pasado: todo
 
 // Construye DB_CARTERA calculando mora real por familia (pensiones vencidas no pagadas)
 function reconstruirCartera(){
@@ -1271,7 +1282,7 @@ let FONDO = JSON.parse(localStorage.getItem("csp_fondo") || JSON.stringify({
     familias: 47,
     diaCierre: 10,
     moraPct: 25,
-    nombre: "Fondo Rotativo Educativo CORPOSEPI® 2026",
+    nombre: "Fondo Rotativo Educativo CORPOSEPI® "+ANIO,
     meta: 30000000
   },
   ciclos: {} // mes: { estado, morosos, prestamo, recaudado }
@@ -1326,12 +1337,12 @@ const WM_MOR = {
 // NAVEGACIÓN
 // ══════════════════════════════════════
 const PAGES = {
-  dashboard: {el:"pg-dashboard", tit:"📊 Dashboard del Fondo Rotativo", sub:"Resumen ejecutivo · CORPOSEPI® · 2026"},
+  dashboard: {el:"pg-dashboard", tit:"📊 Dashboard del Fondo Rotativo", sub:"Resumen ejecutivo · CORPOSEPI® · "+ANIO},
   resumen: {el:"pg-resumen", tit:"🩺 ¿Cómo va CORPOSEPI?", sub:"Resumen ejecutivo · salud financiera de la corporación en vivo"},
   ciclo: {el:"pg-ciclo", tit:"🔄 Ciclo Mensual", sub:"Estado mes a mes del fondo rotativo"},
   morosos: {el:"pg-morosos", tit:"⚠️ Reporte de Pendientes de Pago — Día 6+", sub:"Familias pendientes de pago · Base del préstamo mensual"},
   bolsillo: {el:"pg-bolsillo", tit:"💰 Bolsillo Rotativo", sub:"Pagos recuperados de las familias · Fondo de devolución"},
-  presupuesto: {el:"pg-presupuesto", tit:"📊 Presupuesto 2026", sub:"Ingresos vs gastos · proyección a diciembre"},
+  presupuesto: {el:"pg-presupuesto", tit:"📊 Presupuesto "+ANIO, sub:"Ingresos vs gastos · proyección a diciembre"},
   historial: {el:"pg-historial", tit:"📋 Historial Completo", sub:"Todos los movimientos del fondo"},
   prestamo: {el:"pg-prestamo", tit:"🏦 Préstamos del Fondo", sub:"Registro y seguimiento de préstamos para cubrir mora"},
   compromisos: {el:"pg-compromisos", tit:"💼 Compromisos de Pago", sub:"Gastos cubiertos con pensiones comprometidas · sin interés"},
@@ -1467,9 +1478,9 @@ function getMesActualLabel() {
   const ciclosKeys = Object.keys(FONDO.ciclos);
   if (ciclosKeys.length > 0) {
     const last = Math.max(...ciclosKeys.map(Number));
-    return MESES_NM[last] + " 2026";
+    return MESES_NM[last] + " "+ANIO;
   }
-  return MESES_NM[mesActual()] + " 2026";
+  return MESES_NM[mesActual()] + " "+ANIO;
 }
 
 // ══════════════════════════════════════
@@ -1642,7 +1653,7 @@ function verDetalleCiclo(m) {
   const det = g("ciclo-detalle-card");
   const detC = g("ciclo-detalle");
   det.style.display = "block";
-  g("ciclo-det-titulo").textContent = `📅 ${MESES_NM[m]} 2026 — Detalle`;
+  g("ciclo-det-titulo").textContent = `📅 ${MESES_NM[m]} ${ANIO} — Detalle`;
   const morosos = getMorosos();
   const recH = getRecaudado();
   const prH = ciclo.prestamo || 0;
@@ -1825,7 +1836,7 @@ function rPrestamosDetalle() {
   }).join("");
 }
 function toggleBenef(id, cc, pagado) {
-  fbdb.ref(`rotativo_v1/prestamos/${id}/beneficiarios/${cc}/pagado`).set(pagado)
+  fbdb.ref(`${RV('prestamos')}/${id}/beneficiarios/${cc}/pagado`).set(pagado)
     .then(()=>toast(pagado?"✅ Marcado como pagado (listo para devolver)":"↩ Marcado como pendiente"))
     .catch(e=>toast("⚠ Error: "+e.message));
 }
@@ -1887,13 +1898,13 @@ function guardarAsignacion(){
   const slug=lender.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"")||"x";
   const id=`pr_${mesKey}_${slug}`;
   const updates={};
-  updates[`rotativo_v1/prestamos/${id}/prestamista`]=lender;
-  updates[`rotativo_v1/prestamos/${id}/mes`]=mesKey;
-  updates[`rotativo_v1/prestamos/${id}/concepto`]=`Pensiones ${mesLabelRot(mesKey)}`;
-  updates[`rotativo_v1/prestamos/${id}/fecha`]=g("asig-fecha").value||hoy();
-  updates[`rotativo_v1/prestamos/${id}/tasa`]=tasa;
-  if(g("asig-limite").value) updates[`rotativo_v1/prestamos/${id}/fechaLimite`]=g("asig-limite").value;
-  updates[`rotativo_v1/prestamos/${id}/beneficiarios/${asigCC}`]={nombre:f.nombres, monto:monto, detalle:mesLabelRot(mesKey), pagado:false, tasaPapa:parseFloat(g("asig-tasapapa").value)||0};
+  updates[`${RV('prestamos')}/${id}/prestamista`]=lender;
+  updates[`${RV('prestamos')}/${id}/mes`]=mesKey;
+  updates[`${RV('prestamos')}/${id}/concepto`]=`Pensiones ${mesLabelRot(mesKey)}`;
+  updates[`${RV('prestamos')}/${id}/fecha`]=g("asig-fecha").value||hoy();
+  updates[`${RV('prestamos')}/${id}/tasa`]=tasa;
+  if(g("asig-limite").value) updates[`${RV('prestamos')}/${id}/fechaLimite`]=g("asig-limite").value;
+  updates[`${RV('prestamos')}/${id}/beneficiarios/${asigCC}`]={nombre:f.nombres, monto:monto, detalle:mesLabelRot(mesKey), pagado:false, tasaPapa:parseFloat(g("asig-tasapapa").value)||0};
   fbdb.ref().update(updates)
     .then(()=>{c("ov-asig");toast(`✅ ${f.nombres} asignada a ${lender}`);})
     .catch(e=>toast("⚠ Error: "+e.message));
@@ -1922,15 +1933,15 @@ function asignarTodas(){
   const pend=cob.rows.filter(r=>r.sinCubrir>0);
   if(pend.length===0){toast("Ya está todo cubierto");return;}
   const updates={};
-  updates[`rotativo_v1/prestamos/${id}/prestamista`]=lender;
-  updates[`rotativo_v1/prestamos/${id}/mes`]=mesKey;
-  updates[`rotativo_v1/prestamos/${id}/concepto`]=`Pensiones ${mesLabelRot(mesKey)}`;
-  updates[`rotativo_v1/prestamos/${id}/fecha`]=g("todas-fecha").value||hoy();
-  updates[`rotativo_v1/prestamos/${id}/tasa`]=tasa;
-  if(g("todas-limite").value) updates[`rotativo_v1/prestamos/${id}/fechaLimite`]=g("todas-limite").value;
+  updates[`${RV('prestamos')}/${id}/prestamista`]=lender;
+  updates[`${RV('prestamos')}/${id}/mes`]=mesKey;
+  updates[`${RV('prestamos')}/${id}/concepto`]=`Pensiones ${mesLabelRot(mesKey)}`;
+  updates[`${RV('prestamos')}/${id}/fecha`]=g("todas-fecha").value||hoy();
+  updates[`${RV('prestamos')}/${id}/tasa`]=tasa;
+  if(g("todas-limite").value) updates[`${RV('prestamos')}/${id}/fechaLimite`]=g("todas-limite").value;
   pend.forEach(r=>{
     const f=DB_CARTERA.find(x=>x.cc===r.cc);
-    updates[`rotativo_v1/prestamos/${id}/beneficiarios/${r.cc}`]={nombre:f?f.nombres:r.nombres, monto:r.sinCubrir, detalle:mesLabelRot(mesKey), pagado:false, tasaPapa:tasaPapa};
+    updates[`${RV('prestamos')}/${id}/beneficiarios/${r.cc}`]={nombre:f?f.nombres:r.nombres, monto:r.sinCubrir, detalle:mesLabelRot(mesKey), pagado:false, tasaPapa:tasaPapa};
   });
   fbdb.ref().update(updates)
     .then(()=>{c("ov-todas");toast(`✅ ${pend.length} familias asignadas a ${lender}`);})
@@ -1954,8 +1965,8 @@ function quitarAsignacion(cc){
   Object.entries(PRESTAMOS_FB||{}).forEach(([id,p])=>{
     if(p.mes===mesKey && p.beneficiarios && p.beneficiarios[cc]){
       const otros=Object.keys(p.beneficiarios).filter(x=>x!==cc);
-      if(otros.length===0) updates[`rotativo_v1/prestamos/${id}`]=null;          // era la única familia → borra el préstamo vacío
-      else updates[`rotativo_v1/prestamos/${id}/beneficiarios/${cc}`]=null;
+      if(otros.length===0) updates[`${RV('prestamos')}/${id}`]=null;          // era la única familia → borra el préstamo vacío
+      else updates[`${RV('prestamos')}/${id}/beneficiarios/${cc}`]=null;
     }
   });
   if(Object.keys(updates).length===0){toast("Esta familia no tiene asignación este mes");return;}
@@ -2051,7 +2062,7 @@ function pre_convGet(){
   planes.medellin={nombre:"Medellín",valorMes:(m.valorMes!=null?m.valorMes:73000),estudiantes:(m.estudiantes!=null?m.estudiantes:25)};
   return {meses:(m.meses!=null?m.meses:10), planes};
 }
-function pre_convSave(cv){ fbdb.ref("rotativo_v1/presupuesto/convenios").set(cv).catch(e=>toast("⚠ "+e.message)); }
+function pre_convSave(cv){ fbdb.ref(RV('presupuesto')+"/convenios").set(cv).catch(e=>toast("⚠ "+e.message)); }
 function pre_convMeses(){ const cv=pre_convGet(); cv.meses=parseInt(g("cv-meses").value)||10; pre_convSave(cv); }
 function pre_planSet(id,field,value){ const cv=pre_convGet(); if(!cv.planes[id])return; cv.planes[id][field]= field==="nombre"?value:(parseInt(value)||0); pre_convSave(cv); }
 function pre_addPlan(){ const cv=pre_convGet(); cv.planes["p_"+Date.now()]={nombre:"Nuevo plan",valorMes:0,estudiantes:0}; pre_convSave(cv); }
@@ -2119,8 +2130,8 @@ function pre_renderIngresos(){
       <td><button class="btn b-o b-sm" onclick="pre_borrarIngreso('${id}')">🗑</button></td>
     </tr>`).join("")+`</tbody></table>`;
 }
-function pre_guardarCaja(){ fbdb.ref("rotativo_v1/presupuesto/cajaInicial").set(parseInt(g("pre-caja").value)||0); }
-function pre_guardarBase(){ fbdb.ref("rotativo_v1/presupuesto/base").set(g("pre-base").value); }
+function pre_guardarCaja(){ fbdb.ref(RV('presupuesto')+"/cajaInicial").set(parseInt(g("pre-caja").value)||0); }
+function pre_guardarBase(){ fbdb.ref(RV('presupuesto')+"/base").set(g("pre-base").value); }
 function pre_abrirGasto(){ pre_llenarMeses(); g("ga-nombre").value=""; g("ga-monto").value=""; g("ga-cat").value="Salarios"; g("ga-tipo").value="mensual"; g("ga-desde").value="0"; g("ga-hasta").value="11"; g("ga-cant").value="1"; pre_gaTipo(); ab("ov-gasto"); }
 function pre_gaTipo(){
   const t=g("ga-tipo").value;
@@ -2143,16 +2154,16 @@ function pre_guardarGasto(){
   const o={nombre, categoria:g("ga-cat").value, monto, tipo};
   if(tipo==="anual"){ o.cantidad=parseInt(g("ga-cant").value)||1; }
   else { o.desde=desde; o.hasta = tipo==="unico"?desde:(parseInt(g("ga-hasta").value)||11); }
-  fbdb.ref("rotativo_v1/presupuesto/gastos/ga_"+Date.now()).set(o).then(()=>{c("ov-gasto");toast("✅ Gasto agregado");}).catch(e=>toast("⚠ "+e.message));
+  fbdb.ref(RV('presupuesto')+"/gastos/ga_"+Date.now()).set(o).then(()=>{c("ov-gasto");toast("✅ Gasto agregado");}).catch(e=>toast("⚠ "+e.message));
 }
-function pre_borrarGasto(id){ fbdb.ref("rotativo_v1/presupuesto/gastos/"+id).remove().then(()=>toast("🗑 Gasto eliminado")).catch(e=>toast("⚠ "+e.message)); }
+function pre_borrarGasto(id){ fbdb.ref(RV('presupuesto')+"/gastos/"+id).remove().then(()=>toast("🗑 Gasto eliminado")).catch(e=>toast("⚠ "+e.message)); }
 function pre_abrirIngreso(){ pre_llenarMeses(); g("in-nombre").value=""; g("in-monto").value=""; g("in-mes").value="0"; ab("ov-ing"); }
 function pre_guardarIngreso(){
   const nombre=g("in-nombre").value.trim(); const monto=parseInt(g("in-monto").value)||0;
   if(!nombre||!monto){toast("⚠ Completa concepto y valor");return;}
-  fbdb.ref("rotativo_v1/presupuesto/ingresos/in_"+Date.now()).set({nombre, monto, mes:parseInt(g("in-mes").value)||0}).then(()=>{c("ov-ing");toast("✅ Ingreso agregado");}).catch(e=>toast("⚠ "+e.message));
+  fbdb.ref(RV('presupuesto')+"/ingresos/in_"+Date.now()).set({nombre, monto, mes:parseInt(g("in-mes").value)||0}).then(()=>{c("ov-ing");toast("✅ Ingreso agregado");}).catch(e=>toast("⚠ "+e.message));
 }
-function pre_borrarIngreso(id){ fbdb.ref("rotativo_v1/presupuesto/ingresos/"+id).remove().then(()=>toast("🗑 Ingreso eliminado")).catch(e=>toast("⚠ "+e.message)); }
+function pre_borrarIngreso(id){ fbdb.ref(RV('presupuesto')+"/ingresos/"+id).remove().then(()=>toast("🗑 Ingreso eliminado")).catch(e=>toast("⚠ "+e.message)); }
 
 // ══════════════════════════════════════
 // COMPROMISOS DE PAGO (gastos cubiertos con pensiones, sin interés)
@@ -2267,7 +2278,7 @@ function abonarCartera(cc, monto){
     const esperado=(f.esperadoPorMes&&f.esperadoPorMes[m])||0, pagado=(f.pagosMes&&f.pagosMes[m])||0;
     const gap=Math.max(0, esperado-pagado); if(gap<=0) continue;
     const aplica=Math.min(rem, gap); const actual=parseInt(pgs[m]&&pgs[m][0])||0;
-    updates[`pagos_v3/f_${cc}/pensiones/${m}/0`]=actual+aplica; rem-=aplica;
+    updates[`${NP}/f_${cc}/pensiones/${m}/0`]=actual+aplica; rem-=aplica;
   }
   return {updates, aplicado:monto-rem};
 }
@@ -2563,7 +2574,7 @@ function guardarObl(){
   const id=oblEditId||("obl_"+Date.now());
   // Al editar se conservan los beneficiarios y las jornadas (update de campos, no set completo)
   const campos={nombre, tipo:g("obl-tipo").value, valor, deudaAtras, fecha:g("obl-fecha").value||hoy(), fechaLimite:g("obl-limite").value||"", obs:g("obl-obs").value||"", porDias:porDias||null, valorDia:porDias?valorDia:null, horasDia:porDias?horasDia:null};
-  fbdb.ref("rotativo_v1/obligaciones/"+id).update(campos).then(()=>{c("ov-obl");toast(oblEditId?"✅ Obligación actualizada":"✅ Obligación creada: "+nombre);oblEditId=null;}).catch(e=>toast("⚠ "+e.message));
+  fbdb.ref(RV('obligaciones')+"/"+id).update(campos).then(()=>{c("ov-obl");toast(oblEditId?"✅ Obligación actualizada":"✅ Obligación creada: "+nombre);oblEditId=null;}).catch(e=>toast("⚠ "+e.message));
 }
 // Jornadas (pago por días): registrar/eliminar y recalcular el valor del mes
 function valorHoraObl(o){ return (o.valorDia||0)/((o.horasDia||1)||1); }
@@ -2575,13 +2586,13 @@ function regJornada(id){
   const dias=parseFloat(g("jor-dias-"+id).value)||0, horas=parseFloat(g("jor-horas-"+id).value)||0;
   if(!fecha||(dias<=0&&horas<=0)){toast("⚠ Pon fecha y días u horas trabajados");return;}
   const jornadas=Object.assign({}, o.jornadas||{}); const jid="j_"+Date.now(); jornadas[jid]={fecha,dias,horas};
-  const u={}; u[`rotativo_v1/obligaciones/${id}/jornadas/${jid}`]={fecha,dias,horas}; u[`rotativo_v1/obligaciones/${id}/valor`]=calcValorJornadas(jornadas,o);
+  const u={}; u[`${RV('obligaciones')}/${id}/jornadas/${jid}`]={fecha,dias,horas}; u[`${RV('obligaciones')}/${id}/valor`]=calcValorJornadas(jornadas,o);
   fbdb.ref().update(u).then(()=>toast("✅ Jornada: "+(dias?dias+" día(s) ":"")+(horas?horas+"h":"")+" = "+fmt(montoJornada({dias,horas},o)))).catch(e=>toast("⚠ "+e.message));
 }
 function delJornada(id,jid){
   const o=OBLIGACIONES_FB[id]; if(!o)return;
   const jornadas=Object.assign({}, o.jornadas||{}); delete jornadas[jid];
-  const u={}; u[`rotativo_v1/obligaciones/${id}/jornadas/${jid}`]=null; u[`rotativo_v1/obligaciones/${id}/valor`]=calcValorJornadas(jornadas,o);
+  const u={}; u[`${RV('obligaciones')}/${id}/jornadas/${jid}`]=null; u[`${RV('obligaciones')}/${id}/valor`]=calcValorJornadas(jornadas,o);
   fbdb.ref().update(u).then(()=>toast("🗑 Jornada eliminada")).catch(e=>toast("⚠ "+e.message));
 }
 let coblId=null, coblCon="mes";
@@ -2622,12 +2633,12 @@ function guardarCobl(){
   if(!m){toast("⚠ Escribe el monto");return;}
   const con=g("cobl-concepto").value;
   const updates={};
-  updates[`rotativo_v1/obligaciones/${coblId}/beneficiarios/${cc}`]={nombre:f.nombres, monto:m, fechaCompromiso:g("cobl-fecha").value||"", pagado:false, concepto:con};
+  updates[`${RV('obligaciones')}/${coblId}/beneficiarios/${cc}`]={nombre:f.nombres, monto:m, fechaCompromiso:g("cobl-fecha").value||"", pagado:false, concepto:con};
   fbdb.ref().update(updates).then(()=>{c("ov-cobl");toast(`✅ ${f.nombres} comprometido (${con==="mora"?"mora atrás":"del mes"})`);}).catch(e=>toast("⚠ "+e.message));
 }
-function quitarOblBenef(id,cc){ fbdb.ref(`rotativo_v1/obligaciones/${id}/beneficiarios/${cc}`).remove().then(()=>toast("↩ Papá quitado del gasto")).catch(e=>toast("⚠ "+e.message)); }
-function toggleOblPagado(id,cc,v){ fbdb.ref(`rotativo_v1/obligaciones/${id}/beneficiarios/${cc}/pagado`).set(v).then(()=>toast(v?"✅ Marcado como pagado":"↩ Pendiente")).catch(e=>toast("⚠ "+e.message)); }
-function borrarObl(id){ if(!OBLIGACIONES_FB[id])return; fbdb.ref("rotativo_v1/obligaciones/"+id).remove().then(()=>toast("🗑 Obligación eliminada")).catch(e=>toast("⚠ "+e.message)); }
+function quitarOblBenef(id,cc){ fbdb.ref(`${RV('obligaciones')}/${id}/beneficiarios/${cc}`).remove().then(()=>toast("↩ Papá quitado del gasto")).catch(e=>toast("⚠ "+e.message)); }
+function toggleOblPagado(id,cc,v){ fbdb.ref(`${RV('obligaciones')}/${id}/beneficiarios/${cc}/pagado`).set(v).then(()=>toast(v?"✅ Marcado como pagado":"↩ Pendiente")).catch(e=>toast("⚠ "+e.message)); }
+function borrarObl(id){ if(!OBLIGACIONES_FB[id])return; fbdb.ref(RV('obligaciones')+"/"+id).remove().then(()=>toast("🗑 Obligación eliminada")).catch(e=>toast("⚠ "+e.message)); }
 function compromisoWA(id,cc){
   const o=OBLIGACIONES_FB[id]; if(!o)return; const b=(o.beneficiarios||{})[cc]; if(!b)return;
   const msg=`*CORPOSEPI® — Compromiso de pago*\n\nSeñor(a) *${b.nombre}*, agradecemos su compromiso: usted pagará *${fmt(b.monto)}* de su pensión pendiente ${b.fechaCompromiso?`el *${b.fechaCompromiso}*`:"en la fecha acordada"}.\n\nEste aporte está destinado a cubrir: *${o.nombre}* (${o.tipo}).\n\nGracias por su compromiso con la educación de sus hijos. 🎓\n\n*CORPOSEPI®* · 320 833 1293`;
@@ -2657,7 +2668,7 @@ function rPrestamos() {
     const pct = Math.min(100, Math.round(bol / p.total * 100));
     return `<div style="background:var(--gf);border-radius:10px;padding:12px;margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px">${MESES_NM[p.mes]} 2026</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px">${MESES_NM[p.mes]} ${ANIO}</div>
         <span class="bg ${p.activo?"bc":"bv"}">${p.activo?"Activo":"Cerrado"}</span>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ts);margin-bottom:6px">
@@ -2684,7 +2695,7 @@ function calcPrestamo() {
   if(g("pr-interes")) g("pr-interes").textContent = fmt(interes);
   if(g("pr-ganancia")) g("pr-ganancia").textContent = fmt(recargos);
   const cubre = recargos >= interes;
-  if(g("pr-det")) g("pr-det").innerHTML = `${MESES_NM[parseInt(g("pr-mes")?.value)||mesActual()]} 2026 · Tasa ${tasa}% · Vence ${g("pr-vence")?.value||"—"}<br><span style="color:${cubre?'var(--ve)':'var(--ro)'}">${cubre?'✅':'⚠️'} Recargos ${fmt(recargos)} ${cubre?'cubren':'NO cubren'} el interés ${fmt(interes)}</span>`;
+  if(g("pr-det")) g("pr-det").innerHTML = `${MESES_NM[parseInt(g("pr-mes")?.value)||mesActual()]} ${ANIO} · Tasa ${tasa}% · Vence ${g("pr-vence")?.value||"—"}<br><span style="color:${cubre?'var(--ve)':'var(--ro)'}">${cubre?'✅':'⚠️'} Recargos ${fmt(recargos)} ${cubre?'cubren':'NO cubren'} el interés ${fmt(interes)}</span>`;
 }
 
 function guardarPrestamo() {
@@ -2708,7 +2719,7 @@ function guardarPrestamo() {
   FONDO.ciclos[mes].prestamo = m;
   FONDO.ciclos[mes].morososN = getMorosos().length;
   FONDO.ciclos[mes].estado = "activo";
-  FONDO.historial.push({tipo:"pr", txt:`Préstamo registrado: ${fmt(m)} para ${MESES_NM[mes]} 2026 · Fuente: ${pr.fuente} · Interés: ${fmt(interes)}`, fecha: hoy()});
+  FONDO.historial.push({tipo:"pr", txt:`Préstamo registrado: ${fmt(m)} para ${MESES_NM[mes]} ${ANIO} · Fuente: ${pr.fuente} · Interés: ${fmt(interes)}`, fecha: hoy()});
   sv();
   toast(`✅ Préstamo de ${fmt(m)} registrado · Ciclo ${MESES_NM[mes]} activado`);
   ir("dashboard", document.querySelector(".nb"));
@@ -2720,7 +2731,7 @@ function cerrarPrestamo() {
   pa.activo = false;
   FONDO.ciclos[pa.mes] = FONDO.ciclos[pa.mes] || {};
   FONDO.ciclos[pa.mes].estado = "completado";
-  FONDO.historial.push({tipo:"al", txt:`Préstamo de ${MESES_NM[pa.mes]} 2026 marcado como devuelto. Capital: ${fmt(pa.capital)}`, fecha: hoy()});
+  FONDO.historial.push({tipo:"al", txt:`Préstamo de ${MESES_NM[pa.mes]} ${ANIO} marcado como devuelto. Capital: ${fmt(pa.capital)}`, fecha: hoy()});
   sv();
   toast("✅ Préstamo cerrado · Ciclo completado · Listo para el siguiente mes");
   rDashboard();
@@ -3050,7 +3061,7 @@ function guardarEmpleado(){ const nombre=g("emp-nombre").value.trim(); const val
   fbdb.ref("rotativo_v1/contabilidad/empleados/"+id).update(campos).then(()=>{c("ov-empleado");toast("✅ Persona guardada");empEditId=null;}).catch(e=>toast("⚠ "+e.message)); }
 function borrarEmpleado(id){ if(!EMPLEADOS_FB[id])return; if(!confirm("¿Eliminar a "+(EMPLEADOS_FB[id].nombre||"")+"?"))return; fbdb.ref("rotativo_v1/contabilidad/empleados/"+id).remove().then(()=>toast("🗑 Eliminado")).catch(e=>toast("⚠ "+e.message)); }
 function abrirNomCfg(){ const c=contaCfg(); g("nc-smmlv").value=c.smmlv; g("nc-aux").value=c.auxTransporte; g("nc-exo").checked=!!c.exoneracion; ab("ov-nomcfg"); }
-function guardarNomCfg(){ const campos={smmlv:parseInt(g("nc-smmlv").value)||0,auxTransporte:parseInt(g("nc-aux").value)||0,exoneracion:g("nc-exo").checked}; fbdb.ref("rotativo_v1/contabilidad/config").update(campos).then(()=>{c("ov-nomcfg");toast("✅ Parámetros guardados");}).catch(e=>toast("⚠ "+e.message)); }
+function guardarNomCfg(){ const campos={smmlv:parseInt(g("nc-smmlv").value)||0,auxTransporte:parseInt(g("nc-aux").value)||0,exoneracion:g("nc-exo").checked}; fbdb.ref(RV('contabilidad/config')).update(campos).then(()=>{c("ov-nomcfg");toast("✅ Parámetros guardados");}).catch(e=>toast("⚠ "+e.message)); }
 function desprendibleHTML(e,l){
   const cfg=contaCfg();
   const filas=(arr)=>arr.map(([k,v])=>`<div class="r"><span>${k}</span><b>${fmt(v)}</b></div>`).join("");
@@ -3065,7 +3076,7 @@ function desprendibleHTML(e,l){
   } else {
     patr=`<div class="r" style="border-top:2px solid var(--az);font-size:15px"><span><b>HONORARIO MES</b></span><b style="color:var(--az)">${fmt(l.costoTotal)}</b></div><div class="est-note">Contrato de prestación de servicios. El contratista asume su seguridad social.</div>`;
   }
-  return `<div class="est despr">${emisorHd((e.tipo==="contratista"?"Cuenta de cobro / honorarios":"Desprendible de nómina")+" · "+(MESES_NM[idxMesActual()+2]||"")+" "+new Date().getFullYear())}
+  return `<div class="est despr">${emisorHd((e.tipo==="contratista"?"Cuenta de cobro / honorarios":"Desprendible de nómina")+" · "+(MESES_NM[idxMesActual()+2]||"")+" "+ANIO)}
     <div style="margin-bottom:10px"><b>${e.nombre||""}</b>${e.doc?` · CC ${e.doc}`:""}${e.cargo?` · ${e.cargo}`:""}</div>
     ${e.tipo!=="contratista"?`<div class="est-hd" style="border:none;padding:0;margin:0"><h3 style="font-size:13px">Devengado</h3></div>${filas(dev)}<div class="r"><span>Total devengado</span><b>${fmt(l.devengado)}</b></div>
     <div class="est-hd" style="border:none;padding:0;margin-top:10px"><h3 style="font-size:13px">Deducciones</h3></div>${filas(ded)}
@@ -3119,8 +3130,8 @@ function guardarGasto(){ const desc=g("gc-desc").value.trim(), valor=parseInt(g(
   const campos={desc,categoria:g("gc-cat").value,valor,tipo,estado:g("gc-estado").value,proveedor:g("gc-prov").value.trim()||"",fecha:g("gc-fecha").value||hoy()};
   if(tipo==="mensual"){ campos.desde=parseInt(g("gc-desde").value)||0; campos.hasta=parseInt(g("gc-hasta").value)||idxMesActual(); }
   const id=gastoEditId||("gc_"+Date.now());
-  fbdb.ref("rotativo_v1/contabilidad/gastos/"+id).update(campos).then(()=>{c("ov-gastoc");toast("✅ Gasto guardado");gastoEditId=null;}).catch(e=>toast("⚠ "+e.message)); }
-function borrarGasto(id){ if(!GASTOS_FB[id])return; fbdb.ref("rotativo_v1/contabilidad/gastos/"+id).remove().then(()=>toast("🗑 Gasto eliminado")).catch(e=>toast("⚠ "+e.message)); }
+  fbdb.ref(RV('contabilidad/gastos')+"/"+id).update(campos).then(()=>{c("ov-gastoc");toast("✅ Gasto guardado");gastoEditId=null;}).catch(e=>toast("⚠ "+e.message)); }
+function borrarGasto(id){ if(!GASTOS_FB[id])return; fbdb.ref(RV('contabilidad/gastos')+"/"+id).remove().then(()=>toast("🗑 Gasto eliminado")).catch(e=>toast("⚠ "+e.message)); }
 
 // ── CONEXIÓN: gastos del Presupuesto (año hasta hoy), separando salarios de operativos ──
 function presGastosYTD(){
@@ -3182,7 +3193,7 @@ function estData(){
 }
 function eRow(lbl,val,cls){ return `<tr><td class="${cls||''}">${lbl}</td><td class="v ${cls||''}">${typeof val==="number"?fmt(val):val}</td></tr>`; }
 function rEstados(){
-  const d=estData(), anio=new Date().getFullYear(), corte=MESES_NM[idxMesActual()+2]||"", exc=d.excedente;
+  const d=estData(), anio=ANIO, corte=MESES_NM[idxMesActual()+2]||"", exc=d.excedente;
   // 1) ESTADO DE RESULTADOS
   const er=`<div class="est">${emisorHd("Estado de Resultados · feb–"+corte+" "+anio+" (informe de gestión)")}
     <table>
@@ -3250,7 +3261,7 @@ function rEstados(){
   g("est-body").innerHTML=er+bg+fe+cp;
 }
 function abrirEstCfg(){ const c=contaCfg(); g("ec-caja").value=c.cajaInicial||""; g("ec-fondo").value=c.fondoSocial||""; g("ec-acum").value=c.resultadosAcum||""; ab("ov-estcfg"); }
-function guardarEstCfg(){ const campos={cajaInicial:parseInt(g("ec-caja").value)||0,fondoSocial:parseInt(g("ec-fondo").value)||0,resultadosAcum:parseInt(g("ec-acum").value)||0}; fbdb.ref("rotativo_v1/contabilidad/config").update(campos).then(()=>{c("ov-estcfg");toast("✅ Saldos iniciales guardados");}).catch(e=>toast("⚠ "+e.message)); }
+function guardarEstCfg(){ const campos={cajaInicial:parseInt(g("ec-caja").value)||0,fondoSocial:parseInt(g("ec-fondo").value)||0,resultadosAcum:parseInt(g("ec-acum").value)||0}; fbdb.ref(RV('contabilidad/config')).update(campos).then(()=>{c("ov-estcfg");toast("✅ Saldos iniciales guardados");}).catch(e=>toast("⚠ "+e.message)); }
 
 // ── RESUMEN EJECUTIVO · ¿Cómo va CORPOSEPI? ──
 function rResumen(){
@@ -3259,7 +3270,7 @@ function rResumen(){
   const pctRec=d.ingresoCausado>0?Math.round(d.ingresoRecaudado/d.ingresoCausado*100):100;
   const deudasCP=d.prestamosPorPagar+d.interesPorPagar;
   const deudaTotal=d.prestamosPorPagar+d.interesPorPagar+d.inversionistasPorPagar;
-  const exc=d.excedente, pos=exc>=0, corte=MESES_NM[idxMesActual()+2]||"", anio=new Date().getFullYear();
+  const exc=d.excedente, pos=exc>=0, corte=MESES_NM[idxMesActual()+2]||"", anio=ANIO;
   g("res-verdicto").innerHTML=`<div class="hero-banner" style="background:linear-gradient(135deg,${pos?'#065F46,#059669':'#7F1D1D,#B91C1C'})">
     <div class="hb-icon">${pos?'✅':'⚠️'}</div>
     <div class="hb-txt"><h2>CORPOSEPI va ${pos?'en positivo':'en déficit'}</h2>
@@ -3309,29 +3320,29 @@ function refrescarDesdeFirebase(){
   if (g("pg-presupuesto")?.classList.contains("on")) rPresupuesto();
 }
 // Listeners en vivo: cualquier cambio en la cartera real se refleja al instante
-fbdb.ref('familias_v3').on('value', snap => {
+fbdb.ref(NF).on('value', snap => {
   FAMILIAS = snap.val() ? Object.values(snap.val()) : [];
   refrescarDesdeFirebase();
   if (!_fbListo) { _fbListo = true; toast("☁️ Conectado a la cartera real: " + FAMILIAS.length + " familias"); }
 });
-fbdb.ref('pagos_v3').on('value', snap => {
+fbdb.ref(NP).on('value', snap => {
   PAGOS = snap.val() || {};
   refrescarDesdeFirebase();
 });
 // Préstamos con detalle de beneficiarios (rotativo_v1)
-fbdb.ref('rotativo_v1/prestamos').on('value', snap => {
+fbdb.ref(RV('prestamos')).on('value', snap => {
   PRESTAMOS_FB = snap.val() || {};
   if (g("pg-prestamo")?.classList.contains("on")) { rCobertura(); rPrestamosDetalle(); }
   if (g("pg-dashboard")?.classList.contains("on")) rDashboard();
   if (g("pg-bolsillo")?.classList.contains("on")) rBolsillo();
 });
 // Compromisos de pago (obligaciones/gastos)
-fbdb.ref('rotativo_v1/obligaciones').on('value', snap => {
+fbdb.ref(RV('obligaciones')).on('value', snap => {
   OBLIGACIONES_FB = snap.val() || {};
   if (g("pg-compromisos")?.classList.contains("on")) rCompromisos();
 });
 // Acuerdos de pago por familia (se crean en la Cartera; aquí suman lo comprometido por obligación)
-fbdb.ref('rotativo_v1/acuerdos').on('value', snap => {
+fbdb.ref(RV('acuerdos')).on('value', snap => {
   ACUERDOS_FB = snap.val() || {};
   if (g("pg-compromisos")?.classList.contains("on")) rCompromisos();
 });
@@ -3346,15 +3357,15 @@ fbdb.ref('rotativo_v1/refs').on('value', snap => { REFS_FB = snap.val() || {}; }
 fbdb.ref('rotativo_v1/inversiones').on('value', snap => { INVERSIONES_FB = snap.val() || {}; if (g("pg-inversiones")?.classList.contains("on")) rInversiones(); if (g("ov-cambiotasa")?.classList.contains("on")) ctRender(); });
 fbdb.ref('rotativo_v1/deudas').on('value', snap => { DEUDAS_FB = snap.val() || {}; if (g("pg-inversiones")?.classList.contains("on")) rInversiones(); });
 // Presupuesto (caja, base, gastos, ingresos)
-fbdb.ref('rotativo_v1/presupuesto').on('value', snap => {
+fbdb.ref(RV('presupuesto')).on('value', snap => {
   PRESUP_FB = snap.val() || {};
   if (g("pg-presupuesto")?.classList.contains("on")) rPresupuesto();
   if (g("pg-estados")?.classList.contains("on")) rEstados();
 });
 // Contabilidad (config, empleados, gastos)
-fbdb.ref('rotativo_v1/contabilidad/config').on('value', snap => { CONTA_CFG = snap.val() || {}; if (g("pg-estados")?.classList.contains("on")) rEstados(); if (g("pg-nomina")?.classList.contains("on")) rNomina(); });
+fbdb.ref(RV('contabilidad/config')).on('value', snap => { CONTA_CFG = snap.val() || {}; if (g("pg-estados")?.classList.contains("on")) rEstados(); if (g("pg-nomina")?.classList.contains("on")) rNomina(); });
 fbdb.ref('rotativo_v1/contabilidad/empleados').on('value', snap => { EMPLEADOS_FB = snap.val() || {}; if (g("pg-nomina")?.classList.contains("on")) rNomina(); if (g("pg-estados")?.classList.contains("on")) rEstados(); });
-fbdb.ref('rotativo_v1/contabilidad/gastos').on('value', snap => { GASTOS_FB = snap.val() || {}; if (g("pg-gastos")?.classList.contains("on")) rGastos(); if (g("pg-estados")?.classList.contains("on")) rEstados(); });
+fbdb.ref(RV('contabilidad/gastos')).on('value', snap => { GASTOS_FB = snap.val() || {}; if (g("pg-gastos")?.classList.contains("on")) rGastos(); if (g("pg-estados")?.classList.contains("on")) rEstados(); });
 
 // Botón "Sincronizar": con Firebase ya es en vivo; solo confirma y re-renderiza
 function sincronizarCartera() {
